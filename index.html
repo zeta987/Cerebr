@@ -23,6 +23,10 @@
 </head>
 <body>
     <div id="chat-container"></div>
+    <div id="debug-compat-notice" class="debug-compat-notice" role="status" aria-live="polite">
+        <div class="debug-compat-notice-title" data-role="title" data-i18n="debug_compat_notice_title_active">偵錯相容模式啟用中</div>
+        <div class="debug-compat-notice-hint" data-role="hint" data-i18n="debug_compat_notice_hint_active">目前暫停送出請求，請關閉偵錯相容模式後再送出。</div>
+    </div>
     <button id="scroll-to-bottom" type="button" tabindex="-1" aria-hidden="true" aria-label="滚动到底部" data-i18n-attr="aria-label:aria_scroll_to_bottom">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 5v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -223,6 +227,16 @@
                         <option value="1.1" data-i18n="font_size_large">大</option>
                         <option value="1.2" data-i18n="font_size_xlarge">特大</option>
                     </select>
+                </div>
+                <div class="preference-row">
+                    <div class="preference-main">
+                        <span class="preference-label" data-i18n="preferences_debug_compat_mode">调试兼容模式</span>
+                        <span class="preference-hint" data-i18n="preferences_debug_compat_mode_hint">开启后会暂停发送请求，关闭后可恢复正常发送。</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="preferences-debug-compat-switch" aria-label="调试兼容模式开关" data-i18n-attr="aria-label:preferences_debug_compat_mode_aria">
+                        <span class="slider"></span>
+                    </label>
                 </div>
             </div>
             <div class="preferences-card">

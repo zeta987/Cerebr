@@ -129,6 +129,11 @@ class CerebrSidebar {
     this.lastUrl = window.location.href;
     this.sidebar = null;
     this.iframe = null;
+    this.ghostMode = false;
+    this.ghostState = 'ACTIVE';
+    this.ghostPlaceholder = document.createComment('Cerebr Ghost Placeholder');
+    this.ghostParent = null;
+    this.yieldPlaceholder = null;
     this.hideTimeout = null;
     this.dragging = false;
     this.iframePointerEventsBeforeDrag = null;
@@ -149,6 +154,197 @@ class CerebrSidebar {
     };
     this.initializeSidebar();
     this.setupDragAndDrop(); // 添加拖放事件监听器
+  }
+
+  logYieldGuard(message, extra) {
+    const prefix = '[CerebrCompat][YieldGuard]';
+    if (typeof extra === 'undefined') {
+      console.info(`${prefix} ${message}`);
+      return;
+    }
+    console.info(`${prefix} ${message}`, extra);
+  }
+
+  notifyYieldStateChanged(reason) {
+    const state = this.getGhostState();
+    try {
+      void chrome.runtime.sendMessage({
+        type: 'YIELD_STATE_CHANGED',
+        reason,
+        state,
+        timestamp: Date.now()
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  postGhostStateToIframe(reason) {
+    const frameWindow = this.iframe?.contentWindow;
+    if (!frameWindow) return;
+    try {
+      frameWindow.postMessage({
+        type: 'CEREBR_DEBUG_YIELD_STATE_CHANGED',
+        reason,
+        state: this.getGhostState(),
+        timestamp: Date.now()
+      }, '*');
+    } catch {
+      // ignore
+    }
+  }
+
+  getYieldCopy() {
+    const readMessage = (key, fallback) => {
+      try {
+        return chrome?.i18n?.getMessage?.(key) || fallback;
+      } catch {
+        return fallback;
+      }
+    };
+    return {
+      title: readMessage('debug_compat_notice_title_active', 'Debugger compatibility mode is on'),
+      hint: readMessage(
+        'debug_compat_notice_hint_active',
+        'Requests are paused. Turn off debugger compatibility mode to send.'
+      ),
+      resumeButton: readMessage('yield_placeholder_resume_button', 'Resume Cerebr panel')
+    };
+  }
+
+  createYieldPlaceholder() {
+    if (this.yieldPlaceholder) return this.yieldPlaceholder;
+    const copy = this.getYieldCopy();
+    const placeholder = document.createElement('div');
+    placeholder.className = 'cerebr-sidebar__yield-placeholder';
+    placeholder.style.display = 'none';
+    placeholder.innerHTML = `
+      <div class="cerebr-sidebar__yield-placeholder-title">${copy.title}</div>
+      <div class="cerebr-sidebar__yield-placeholder-hint">${copy.hint}</div>
+      <button type="button" class="cerebr-sidebar__yield-placeholder-button" data-role="resume">${copy.resumeButton}</button>
+    `;
+    const resumeButton = placeholder.querySelector('[data-role="resume"]');
+    if (resumeButton) {
+      resumeButton.addEventListener('click', () => {
+        this.setGhostMode(false, 'PLACEHOLDER_RESUME_BUTTON');
+      });
+    }
+    this.yieldPlaceholder = placeholder;
+    return placeholder;
+  }
+
+  showYieldPlaceholder() {
+    const placeholder = this.createYieldPlaceholder();
+    const copy = this.getYieldCopy();
+    const title = placeholder.querySelector('.cerebr-sidebar__yield-placeholder-title');
+    const hint = placeholder.querySelector('.cerebr-sidebar__yield-placeholder-hint');
+    const resumeButton = placeholder.querySelector('[data-role="resume"]');
+    if (title) title.textContent = copy.title;
+    if (hint) hint.textContent = copy.hint;
+    if (resumeButton) resumeButton.textContent = copy.resumeButton;
+    placeholder.style.display = 'flex';
+  }
+
+  hideYieldPlaceholder() {
+    if (!this.yieldPlaceholder) return;
+    this.yieldPlaceholder.style.display = 'none';
+  }
+
+  detachIframeForYield(reason) {
+    const frame = this.iframe;
+    if (!frame || !frame.isConnected) return false;
+    const parent = frame.parentNode;
+    if (!parent) return false;
+
+    // 先放置占位锚点，恢复时可回到原先 DOM 位置而非末尾追加。
+    if (this.ghostPlaceholder.parentNode && this.ghostPlaceholder.parentNode !== parent) {
+      this.ghostPlaceholder.remove();
+    }
+    if (this.ghostPlaceholder.parentNode !== parent) {
+      parent.insertBefore(this.ghostPlaceholder, frame);
+    }
+
+    frame.remove();
+    this.ghostParent = parent;
+    this.logYieldGuard('Frame removed for yielding', { reason, timestamp: Date.now() });
+    return true;
+  }
+
+  restoreIframeFromYield(reason) {
+    const frame = this.iframe;
+    const fallbackParent = this.ghostPlaceholder.parentNode || this.ghostParent;
+    if (frame && !frame.isConnected && fallbackParent && fallbackParent.isConnected) {
+      if (this.ghostPlaceholder.parentNode === fallbackParent) {
+        fallbackParent.insertBefore(frame, this.ghostPlaceholder);
+        this.ghostPlaceholder.remove();
+      } else {
+        fallbackParent.appendChild(frame);
+      }
+      this.logYieldGuard('Frame restored', { reason, timestamp: Date.now() });
+      this.ghostParent = null;
+      return true;
+    }
+    if (this.ghostPlaceholder.parentNode) {
+      this.ghostPlaceholder.remove();
+    }
+    this.ghostParent = null;
+    return false;
+  }
+
+  suspendForYield(reason = 'unknown') {
+    if (this.ghostState === 'YIELDING') return this.getGhostState();
+
+    this.ghostState = 'YIELDING';
+    this.ghostMode = true;
+    this.showYieldPlaceholder();
+    // 相容模式的核心是“移除 iframe”，仅改状态会导致跨扩展调试冲突仍然存在。
+    const detached = this.detachIframeForYield(reason);
+    if (!detached) {
+      this.logYieldGuard('Yielding enabled before iframe is ready', {
+        reason,
+        timestamp: Date.now()
+      });
+    }
+    this.logYieldGuard('State -> YIELDING', { reason, timestamp: Date.now() });
+    this.notifyYieldStateChanged(reason);
+    return this.getGhostState();
+  }
+
+  resumeFromYield(reason = 'unknown') {
+    if (this.ghostState === 'ACTIVE') return this.getGhostState();
+    this.hideYieldPlaceholder();
+    this.restoreIframeFromYield(reason);
+    this.ghostMode = false;
+    this.ghostState = 'ACTIVE';
+    this.logYieldGuard('State -> ACTIVE', { reason, timestamp: Date.now() });
+    this.notifyYieldStateChanged(reason);
+    this.postGhostStateToIframe(reason);
+    return this.getGhostState();
+  }
+
+  getGhostState() {
+    const iframePresent = !!(this.iframe && this.iframe.isConnected);
+    return {
+      ready: !!this.iframe,
+      ghostMode: this.ghostMode,
+      ghostState: this.ghostState,
+      iframePresent,
+      sidebarVisible: this.isVisible,
+      guardActive: false,
+      guardRemovalCount: 0
+    };
+  }
+
+  setGhostMode(nextState, reason = 'unknown') {
+    const enableYield = typeof nextState === 'boolean'
+      ? nextState
+      : this.ghostState !== 'YIELDING';
+    if (enableYield) return this.suspendForYield(reason);
+    return this.resumeFromYield(reason);
+  }
+
+  toggleGhostMode(reason = 'manual') {
+    return this.setGhostMode(this.ghostState !== 'YIELDING', reason);
   }
 
   async loadWidth() {
@@ -516,10 +712,11 @@ class CerebrSidebar {
     this.__cerebrIframeDragMessagingAttached = true;
 
     const onMessage = (event) => {
-      if (!this.sidebar || !this.iframe) return;
-      if (event.source !== this.iframe.contentWindow) return;
       const data = event.data;
       if (!data || typeof data !== 'object') return;
+
+      if (!this.sidebar || !this.iframe) return;
+      if (event.source !== this.iframe.contentWindow) return;
 
       if (data.type === 'CEREBR_SIDEBAR_DRAG_START') {
         if (!this.isVisible) return;
@@ -651,6 +848,42 @@ class CerebrSidebar {
           background: var(--cerebr-bg-color, #ffffff);
           contain: strict;
         }
+        .cerebr-sidebar__yield-placeholder {
+          width: 100%;
+          height: 100%;
+          display: none;
+          flex-direction: column;
+          justify-content: center;
+          gap: 10px;
+          padding: 16px;
+          box-sizing: border-box;
+          color: var(--cerebr-text-color, #000000);
+          background: var(--cerebr-bg-color, #ffffff);
+        }
+        .cerebr-sidebar__yield-placeholder-title {
+          font-size: 15px;
+          font-weight: 600;
+        }
+        .cerebr-sidebar__yield-placeholder-hint {
+          font-size: 13px;
+          line-height: 1.5;
+          opacity: 0.85;
+        }
+        .cerebr-sidebar__yield-placeholder-button {
+          margin-top: 6px;
+          align-self: flex-start;
+          border: none;
+          border-radius: 8px;
+          background: var(--cerebr-toggle-bg-on, #2d6cff);
+          color: #fff;
+          padding: 8px 12px;
+          cursor: pointer;
+          font-size: 13px;
+          line-height: 1;
+        }
+        .cerebr-sidebar__yield-placeholder-button:hover {
+          opacity: 0.92;
+        }
       `;
 
       this.sidebar = document.createElement('div');
@@ -677,10 +910,16 @@ class CerebrSidebar {
       const content = document.createElement('div');
       content.className = 'cerebr-sidebar__content';
 
+      const yieldPlaceholder = this.createYieldPlaceholder();
+      content.appendChild(yieldPlaceholder);
+
       const iframe = document.createElement('iframe');
       iframe.className = 'cerebr-sidebar__iframe';
       iframe.src = chrome.runtime.getURL('index.html');
       iframe.allow = 'clipboard-write';
+      iframe.addEventListener('load', () => {
+        this.postGhostStateToIframe('IFRAME_READY');
+      });
       this.iframe = iframe;
 
       content.appendChild(iframe);
@@ -698,6 +937,10 @@ class CerebrSidebar {
       // 添加到文档并保护它
       const root = document.documentElement;
       root.appendChild(container);
+      if (this.ghostState === 'YIELDING') {
+        this.showYieldPlaceholder();
+        this.detachIframeForYield('INIT_WHILE_YIELDING');
+      }
 
       // 使用MutationObserver确保我们的元素不会被移除
       const observer = new MutationObserver((mutations) => {
@@ -707,6 +950,10 @@ class CerebrSidebar {
             if (removedNodes.includes(container)) {
               console.log('检测到侧边栏被移除，正在恢复...');
               root.appendChild(container);
+              if (this.ghostState === 'YIELDING') {
+                this.showYieldPlaceholder();
+                this.detachIframeForYield('CONTAINER_RESTORED');
+              }
             }
           }
         }
@@ -946,10 +1193,59 @@ class CerebrSidebar {
 }
 
 let sidebar;
+const CEREBR_GHOST_BRIDGE_KEY = '__CEREBR_GHOST_BRIDGE__';
+
+function getUnavailableGhostState() {
+  return {
+    ready: false,
+    ghostMode: false,
+    ghostState: 'ACTIVE',
+    iframePresent: false,
+    sidebarVisible: false,
+    guardActive: false,
+    guardRemovalCount: 0
+  };
+}
+
+function exposeGhostBridge(sidebarInstance) {
+  // 仅暴露最小可控接口给 controller，避免泄漏 sidebar 内部实现细节。
+  const bridge = {
+    setGhostMode(nextState, reason = 'unknown') {
+      if (!sidebarInstance) return getUnavailableGhostState();
+      return sidebarInstance.setGhostMode(nextState, reason);
+    },
+    toggleGhostMode(reason = 'manual') {
+      if (!sidebarInstance) return getUnavailableGhostState();
+      return sidebarInstance.toggleGhostMode(reason);
+    },
+    getState() {
+      if (!sidebarInstance) return getUnavailableGhostState();
+      return sidebarInstance.getGhostState();
+    }
+  };
+
+  try {
+    Object.defineProperty(window, CEREBR_GHOST_BRIDGE_KEY, {
+      value: bridge,
+      configurable: true,
+      enumerable: false,
+      writable: false
+    });
+  } catch {
+    try {
+      window[CEREBR_GHOST_BRIDGE_KEY] = bridge;
+    } catch (error) {
+      console.warn('[CerebrCompat][YieldGuard] failed to expose bridge:', error);
+    }
+  }
+}
+
 try {
   sidebar = new CerebrSidebar();
+  exposeGhostBridge(sidebar);
   // console.log('侧边栏实例已创建');
 } catch (error) {
+  exposeGhostBridge(null);
   console.error('创建侧边栏实例失败:', error);
 }
 
@@ -966,6 +1262,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         timestamp: message.timestamp,
         responseTime: Date.now()
       });
+      return true;
+    }
+
+    if (message.type === 'CEREBR_TOGGLE_YIELD') {
+      try {
+        if (!sidebar) {
+          sendResponse({ success: false, error: 'Sidebar instance not found' });
+          return true;
+        }
+        const state = sidebar.toggleGhostMode(message.reason || 'COMMAND');
+        sendResponse({ success: true, state });
+      } catch (error) {
+        sendResponse({ success: false, error: error?.message || String(error) });
+      }
+      return true;
+    }
+
+    if (message.type === 'CEREBR_SET_YIELD') {
+      try {
+        if (!sidebar) {
+          sendResponse({ success: false, error: 'Sidebar instance not found' });
+          return true;
+        }
+        const shouldEnable = !!message.enable;
+        const state = sidebar.setGhostMode(shouldEnable, message.reason || 'EXTERNAL');
+        sendResponse({ success: true, state });
+      } catch (error) {
+        sendResponse({ success: false, error: error?.message || String(error) });
+      }
+      return true;
+    }
+
+    if (message.type === 'CEREBR_GET_YIELD_STATE') {
+      try {
+        if (!sidebar) {
+          sendResponse({ success: false, error: 'Sidebar instance not found' });
+          return true;
+        }
+        sendResponse({ success: true, state: sidebar.getGhostState() });
+      } catch (error) {
+        sendResponse({ success: false, error: error?.message || String(error) });
+      }
       return true;
     }
 

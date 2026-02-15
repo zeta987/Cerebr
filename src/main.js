@@ -60,7 +60,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const preferencesFontScale = document.getElementById('preferences-font-scale');
         const preferencesFeedback = document.getElementById('preferences-feedback');
         const preferencesLanguage = document.getElementById('preferences-language');
+        const preferencesDebugCompatSwitch = document.getElementById('preferences-debug-compat-switch');
         const scrollToBottomButton = document.getElementById('scroll-to-bottom');
+        const debugCompatNotice = document.getElementById('debug-compat-notice');
 
         if (!chatContainer || !messageInput || !contextMenu) {
             console.error('[Cerebr] 初始化失败：缺少 #chat-container / #message-input / #context-menu');
@@ -401,6 +403,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     // pendingAbort 用于处理“首 token 前”用户立刻点停止的情况
     const abortControllerRef = { current: null, pendingAbort: false };
     let currentController = null;
+    const debugCompatNoticeTitle = debugCompatNotice?.querySelector('[data-role="title"]') || null;
+    const debugCompatNoticeHint = debugCompatNotice?.querySelector('[data-role="hint"]') || null;
+    let debugYieldState = { ghostState: 'ACTIVE' };
+
+    const setDebugCompatSwitchState = (state, disabled = false) => {
+        if (!preferencesDebugCompatSwitch) return;
+        preferencesDebugCompatSwitch.checked = state?.ghostState === 'YIELDING';
+        preferencesDebugCompatSwitch.disabled = disabled;
+    };
+
+    const isDebugCompatYielding = () => debugYieldState?.ghostState === 'YIELDING';
+
+    const renderDebugCompatNotice = () => {
+        if (!debugCompatNotice) return;
+
+        const yielding = isDebugCompatYielding();
+        debugCompatNotice.classList.toggle('visible', yielding);
+        debugCompatNotice.classList.toggle('is-yielding', yielding);
+
+        if (!yielding) return;
+
+        if (debugCompatNoticeTitle) {
+            debugCompatNoticeTitle.textContent = t('debug_compat_notice_title_active');
+        }
+        if (debugCompatNoticeHint) {
+            debugCompatNoticeHint.textContent = t('debug_compat_notice_hint_active');
+        }
+    };
+
+    const applyDebugCompatState = (state, { keepSwitchDisabled = false } = {}) => {
+        const previousGhostState = debugYieldState?.ghostState;
+        const normalizedState = state?.ghostState === 'YIELDING'
+            ? { ...state, ghostState: 'YIELDING' }
+            : { ...state, ghostState: 'ACTIVE' };
+
+        debugYieldState = normalizedState;
+        setDebugCompatSwitchState(normalizedState, keepSwitchDisabled);
+        renderDebugCompatNotice();
+
+        if (previousGhostState !== 'YIELDING' && normalizedState.ghostState === 'YIELDING') {
+            // 切入 yielding 时立即终止进行中的流式请求，避免界面与状态不同步。
+            const updatingMessage = chatContainer.querySelector('.ai-message.updating');
+            if (updatingMessage && currentController) {
+                currentController.abort();
+                currentController = null;
+                abortControllerRef.current = null;
+                updatingMessage.classList.remove('updating');
+            }
+            restoreDefaultPlaceholder();
+        }
+    };
+
+    window.addEventListener('cerebr:localeChanged', () => {
+        renderDebugCompatNotice();
+    });
+    renderDebugCompatNotice();
 
     // 创建UI工具配置
     const uiConfig = {
@@ -649,9 +707,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         void tryRestoreReadingProgress(chatId);
     });
 
-
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
+        const data = event?.data;
+        if (data?.type === 'CEREBR_DEBUG_YIELD_STATE_CHANGED') {
+            // content script 通过 postMessage 回传最新状态，供 iframe UI 实时同步。
+            applyDebugCompatState(data.state);
+            return;
+        }
+
         // 使用消息输入组件的窗口消息处理函数
         handleWindowMessage(event, {
             messageInput,
@@ -738,6 +802,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function regenerateMessage(messageElement) {
         if (!messageElement) return;
+        if (isDebugCompatYielding()) {
+            showToast(t('toast_debug_compat_send_blocked'), { type: 'info', durationMs: 2200 });
+            return;
+        }
 
         // 如果有正在更新的AI消息，停止它
         const updatingMessage = chatContainer.querySelector('.ai-message.updating');
@@ -862,30 +930,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function sendMessage() {
-        // 如果有正在更新的AI消息，停止它
+    async function sendPreparedMessage(content) {
+        if (isDebugCompatYielding()) {
+            showToast(t('toast_debug_compat_send_blocked'), { type: 'info', durationMs: 2200 });
+            return;
+        }
+
         const updatingMessage = chatContainer.querySelector('.ai-message.updating');
         if (updatingMessage && currentController) {
             currentController.abort();
             currentController = null;
-            abortControllerRef.current = null; // 同步更新引用对象
+            abortControllerRef.current = null;
             updatingMessage.classList.remove('updating');
         }
 
-        // 获取格式化后的消息内容
-        const { message, imageTags } = getFormattedMessageContent(messageInput);
-
-        if (!message.trim() && imageTags.length === 0) return;
-
         try {
             const stickToBottomOnSend = shouldStickToBottom(chatContainer);
-            // 构建消息内容
-            const content = buildMessageContent(message, imageTags);
-
             // 构建用户消息
             const userMessage = {
                 role: "user",
-                content: content
+                content
             };
 
             // 先添加用户消息到界面和历史记录
@@ -900,17 +964,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             messageInput.focus();
             setThinkingPlaceholder();
 
-            // 构建消息数组
             const currentChat = chatManager.getCurrentChat();
-            if (currentChat?.id) {
+            if (!currentChat) {
+                throw new Error('当前没有活动对话');
+            }
+            if (currentChat.id) {
                 await storageAdapter.remove(draftKeyForChatId(currentChat.id));
             }
-            const messages = currentChat ? [...currentChat.messages] : [];  // 从chatManager获取消息历史
+
+            const messages = [...currentChat.messages];
             messages.push(userMessage);
             await chatManager.addMessageToCurrentChat(userMessage);
             await chatManager.flushNow().catch(() => {});
 
-            // 准备API调用参数
             const apiParams = {
                 messages,
                 apiConfig: apiConfigs[selectedConfigIndex],
@@ -918,7 +984,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
             };
 
-            // 首 token 前占位：减少“没反应”的体感
             void appendMessage({
                 text: '',
                 sender: 'ai',
@@ -937,11 +1002,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return chatContainerManager.syncMessage(updatedChatId, message);
             };
 
-            // 调用带重试逻辑的 API
             await callAPIWithRetry(apiParams, chatManager, currentChat.id, onMessageUpdate);
             await chatManager.flushNow().catch(() => {});
             await readingProgressManager.saveNow().catch(() => {});
-
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('用户手动停止更新');
@@ -950,7 +1013,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('发送消息失败:', error);
             showToast(t('error_send_failed', [error.message]), { type: 'error', durationMs: 2200 });
         } finally {
-            // Best-effort: avoid losing the last question/answer on refresh.
             void chatManager.flushNow().catch(() => {});
             void readingProgressManager.saveNow().catch(() => {});
             restoreDefaultPlaceholder();
@@ -963,6 +1025,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
+    }
+
+    async function sendMessage() {
+        // 获取格式化后的消息内容
+        const { message, imageTags } = getFormattedMessageContent(messageInput);
+        if (!message.trim() && imageTags.length === 0) return;
+
+        if (isDebugCompatYielding()) {
+            messageInput.focus();
+            showToast(t('toast_debug_compat_send_blocked'), {
+                type: 'info',
+                durationMs: 2200
+            });
+            return;
+        }
+
+        // 构建消息内容
+        const content = buildMessageContent(message, imageTags);
+        await sendPreparedMessage(content);
     }
 
     let settingsMenuOpenMode = null;
@@ -1594,6 +1675,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await setLanguagePreference(preferencesLanguage.value);
                 await reloadI18n();
                 applyI18n(document);
+                renderDebugCompatNotice();
 
                 // 同步更新空对话的默认标题
                 try {
@@ -1623,9 +1705,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    const refreshDebugCompatSwitch = async () => {
+        if (!isExtensionEnvironment) {
+            applyDebugCompatState({ ghostState: 'ACTIVE' }, { keepSwitchDisabled: true });
+            return;
+        }
+        setDebugCompatSwitchState(debugYieldState, true);
+        try {
+            const response = await browserAdapter.sendMessage({ type: 'GET_DEBUG_YIELD_STATE' });
+            if (!response?.ok) {
+                throw new Error(response?.error || 'Failed to read debugger compatibility mode');
+            }
+            applyDebugCompatState(response.state, { keepSwitchDisabled: false });
+        } catch (error) {
+            console.error('读取调试兼容模式失败:', error);
+            applyDebugCompatState({ ghostState: 'ACTIVE' }, { keepSwitchDisabled: false });
+        }
+    };
+
+    if (preferencesDebugCompatSwitch) {
+        if (!isExtensionEnvironment) {
+            applyDebugCompatState({ ghostState: 'ACTIVE' }, { keepSwitchDisabled: true });
+        } else {
+            void refreshDebugCompatSwitch();
+        }
+
+        preferencesDebugCompatSwitch.addEventListener('change', async () => {
+            if (!isExtensionEnvironment) {
+                applyDebugCompatState({ ghostState: 'ACTIVE' }, { keepSwitchDisabled: true });
+                return;
+            }
+
+            const enable = preferencesDebugCompatSwitch.checked;
+            setDebugCompatSwitchState({ ghostState: enable ? 'YIELDING' : 'ACTIVE' }, true);
+            if (enable) {
+                debugYieldState = { ...debugYieldState, ghostState: 'YIELDING' };
+                renderDebugCompatNotice();
+            }
+            try {
+                const response = await browserAdapter.sendMessage({
+                    type: 'SET_DEBUG_YIELD_STATE',
+                    enable,
+                    reason: 'PREFERENCES'
+                });
+                if (!response?.ok) {
+                    throw new Error(response?.error || 'Failed to set debugger compatibility mode');
+                }
+                applyDebugCompatState(response.state, { keepSwitchDisabled: false });
+            } catch (error) {
+                console.error('设置调试兼容模式失败:', error);
+                await refreshDebugCompatSwitch();
+            }
+        });
+    }
+
     if (preferencesToggle && preferencesSettings) {
         preferencesToggle.addEventListener('click', () => {
             preferencesSettings.classList.add('visible');
+            void refreshDebugCompatSwitch();
             closeSettingsMenu();
         });
     }

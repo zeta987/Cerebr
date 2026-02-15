@@ -4,6 +4,7 @@
   "action_open_sidebar": { "message": "打开 Cerebr 侧边栏" },
   "command_toggle_sidebar_description": { "message": "打开/关闭 Cerebr 侧边栏" },
   "command_new_chat_description": { "message": "创建新的对话" },
+  "command_debug_compat_mode_description": { "message": "切换调试兼容模式" },
 
   "context_menu_label": { "message": "消息操作菜单" },
   "context_copy_message": { "message": "复制消息" },
@@ -55,6 +56,12 @@
   "font_size_xlarge": { "message": "特大" },
   "preferences_language_label": { "message": "语言" },
   "preferences_language_aria": { "message": "语言设置" },
+  "preferences_debug_compat_mode": { "message": "调试兼容模式" },
+  "preferences_debug_compat_mode_aria": { "message": "调试兼容模式开关" },
+  "preferences_debug_compat_mode_hint": { "message": "开启后会暂停发送请求，关闭后可恢复正常发送。" },
+  "debug_compat_notice_title_active": { "message": "调试兼容模式启用中" },
+  "debug_compat_notice_hint_active": { "message": "当前暂停发送请求，请关闭调试兼容模式后再发送。" },
+  "yield_placeholder_resume_button": { "message": "恢复 Cerebr 面板" },
   "language_auto": { "message": "自动" },
   "language_en": { "message": "English" },
   "language_zh_cn": { "message": "简体中文" },
@@ -82,6 +89,7 @@
   "toast_copy_math_failed": { "message": "复制公式失败" },
   "toast_no_math_found": { "message": "没有找到可复制的公式" },
   "toast_handle_image_failed": { "message": "处理图片失败" },
+  "toast_debug_compat_send_blocked": { "message": "调试兼容模式下已暂停发送请求" },
   "toast_empty_response": { "message": "模型未返回任何内容，可尝试重试" },
 
   "label_thinking": { "message": "正在思考" },

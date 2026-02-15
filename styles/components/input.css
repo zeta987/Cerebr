@@ -14,6 +14,52 @@
     min-height: 48px;
 }
 
+.debug-compat-notice {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(56px + env(safe-area-inset-bottom) + var(--chat-bottom-extra-padding, 0px));
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--cerebr-surface-border, rgba(0, 0, 0, 0.14));
+    background: var(--cerebr-surface-bg, rgba(255, 255, 255, 0.85));
+    color: var(--cerebr-text-color, #1d1d1f);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 6px 16px var(--cerebr-popup-shadow);
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 140;
+}
+
+.debug-compat-notice.visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+}
+
+.debug-compat-notice.is-yielding {
+    border-color: var(--cerebr-highlight-border-color, rgba(0, 122, 255, 0.45));
+}
+
+.debug-compat-notice-title {
+    font-size: var(--cerebr-fs-13);
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.debug-compat-notice-hint {
+    margin-top: 4px;
+    font-size: var(--cerebr-fs-12);
+    line-height: 1.45;
+    opacity: 0.9;
+}
+
+.keyboard-visible .debug-compat-notice {
+    bottom: calc(56px + env(safe-area-inset-bottom) + var(--keyboard-height, 0px) + var(--chat-bottom-extra-padding, 0px));
+}
+
 .message-input-shell {
     flex: 1;
     position: relative;

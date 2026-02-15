@@ -87,6 +87,20 @@
     color: var(--cerebr-text-color);
 }
 
+.preference-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.preference-hint {
+    font-size: var(--cerebr-fs-12);
+    color: var(--cerebr-text-secondary-color);
+    opacity: 0.8;
+    line-height: 1.4;
+}
+
 .preference-value {
     display: inline-flex;
     align-items: center;

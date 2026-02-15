@@ -4,6 +4,7 @@
   "action_open_sidebar": { "message": "Open Cerebr sidebar" },
   "command_toggle_sidebar_description": { "message": "Toggle Cerebr sidebar" },
   "command_new_chat_description": { "message": "Start a new chat" },
+  "command_debug_compat_mode_description": { "message": "Toggle debugger compatibility mode" },
 
   "context_menu_label": { "message": "Message actions" },
   "context_copy_message": { "message": "Copy message" },
@@ -55,6 +56,12 @@
   "font_size_xlarge": { "message": "Extra large" },
   "preferences_language_label": { "message": "Language" },
   "preferences_language_aria": { "message": "Language setting" },
+  "preferences_debug_compat_mode": { "message": "Debugger compatibility mode" },
+  "preferences_debug_compat_mode_aria": { "message": "Debugger compatibility mode switch" },
+  "preferences_debug_compat_mode_hint": { "message": "Pause requests while debugging. Turn it off to resume sending." },
+  "debug_compat_notice_title_active": { "message": "Debugger compatibility mode is on" },
+  "debug_compat_notice_hint_active": { "message": "Requests are paused. Turn off debugger compatibility mode to send." },
+  "yield_placeholder_resume_button": { "message": "Resume Cerebr panel" },
   "language_auto": { "message": "Auto" },
   "language_en": { "message": "English" },
   "language_zh_cn": { "message": "简体中文" },
@@ -82,6 +89,7 @@
   "toast_copy_math_failed": { "message": "Copy formula failed" },
   "toast_no_math_found": { "message": "No formula found to copy" },
   "toast_handle_image_failed": { "message": "Failed to process image" },
+  "toast_debug_compat_send_blocked": { "message": "Requests are paused in debugger compatibility mode" },
   "toast_empty_response": { "message": "No response returned by the model" },
 
   "label_thinking": { "message": "Thinking" },

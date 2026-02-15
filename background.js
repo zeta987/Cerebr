@@ -29,6 +29,9 @@ const pdfJsInjectedTabs = new Set();
 // YouTube timedtext URL 缓存：从 webRequest 捕获“带签名的完整 URL”，避免自行构造参数
 const ytTimedTextUrlByTabAndVideo = new Map(); // key: `${tabId}:${videoId}` -> { url, createdAt }
 const YT_TIMEDTEXT_TTL_MS = 10 * 60 * 1000;
+const YIELD_GUARD_LOG_PREFIX = '[CerebrCompat][YieldGuard]';
+// 记录“应保持 yielding”的 tab，确保导航后可重套用相容模式。
+const yieldEnabledTabs = new Set();
 
 function ytTimedTextKey(tabId, videoId) {
   return `${tabId}:${videoId}`;
@@ -77,6 +80,7 @@ try {
 
 chrome.tabs?.onRemoved?.addListener?.((tabId) => {
   pdfJsInjectedTabs.delete(tabId);
+  yieldEnabledTabs.delete(tabId);
   // 清理该 tab 的 timedtext 缓存
   for (const key of ytTimedTextUrlByTabAndVideo.keys()) {
     if (key.startsWith(`${tabId}:`)) {
@@ -131,7 +135,7 @@ async function reinjectContentScript(tabId) {
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ['content.js']
+      files: ['content.js', 'src/utils/ghost-controller.js']
     });
     console.log('已重新注入 content script');
     // 给脚本一点时间初始化
@@ -147,6 +151,118 @@ async function reinjectContentScript(tabId) {
   }
 }
 
+async function sendMessageToTabWithReconnect(tabId, payload) {
+  if (!tabId) {
+    return { ok: false, error: 'Missing tabId' };
+  }
+
+  // 检查标签页是否已连接
+  let isConnected = await isTabConnected(tabId);
+  if (!isConnected) {
+    // 未连接时尝试重新注入 content script
+    isConnected = await reinjectContentScript(tabId);
+  }
+
+  if (!isConnected) {
+    return { ok: false, error: 'Content script not connected' };
+  }
+
+  const response = await chrome.tabs.sendMessage(tabId, payload);
+  return { ok: true, response };
+}
+
+async function sendToActiveTab(payload) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    return { ok: false, error: 'No active tab' };
+  }
+
+  const result = await sendMessageToTabWithReconnect(tab.id, payload);
+  return { ...result, tabId: tab.id };
+}
+
+function syncYieldTabState(tabId, state) {
+  if (!tabId || !state || typeof state !== 'object') return;
+  if (state.ghostState === 'YIELDING') {
+    yieldEnabledTabs.add(tabId);
+    return;
+  }
+  if (state.ghostState === 'ACTIVE') {
+    yieldEnabledTabs.delete(tabId);
+  }
+}
+
+async function ensureYieldStateApplied(tabId, enable, reason, maxAttempts = 5) {
+  let lastError = 'Unknown error';
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      // 页面刚导航完成时 content script 可能尚未稳定，短暂重试可提升命中率。
+      const result = await sendMessageToTabWithReconnect(tabId, {
+        type: 'CEREBR_SET_YIELD',
+        enable,
+        reason
+      });
+      if (result.ok && result.response?.success) {
+        syncYieldTabState(tabId, result.response?.state);
+        return { ok: true, state: result.response?.state };
+      }
+      lastError = result.error || result.response?.error || 'Failed to apply state';
+    } catch (error) {
+      lastError = error?.message || String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return { ok: false, error: lastError };
+}
+
+async function getYieldStateForTab(tabId) {
+  if (!tabId) {
+    return { ok: false, error: 'Missing tabId' };
+  }
+  try {
+    const result = await sendMessageToTabWithReconnect(tabId, { type: 'CEREBR_GET_YIELD_STATE' });
+    if (result.ok && result.response?.success) {
+      syncYieldTabState(tabId, result.response.state);
+      return { ok: true, state: result.response.state };
+    }
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+
+  // content script 暂不可达时，退回 background 缓存状态，避免 UI 失去状态感知。
+  const ghostState = yieldEnabledTabs.has(tabId) ? 'YIELDING' : 'ACTIVE';
+  return {
+    ok: true,
+    state: {
+      ghostState,
+      ghostMode: ghostState === 'YIELDING'
+    }
+  };
+}
+
+async function setYieldStateForTab(tabId, enable, reason = 'PREFERENCES') {
+  if (!tabId) {
+    return { ok: false, error: 'Missing tabId' };
+  }
+  try {
+    const result = await sendMessageToTabWithReconnect(tabId, {
+      type: 'CEREBR_SET_YIELD',
+      enable: !!enable,
+      reason
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error || 'Failed to send message' };
+    }
+    if (result.response?.success) {
+      syncYieldTabState(tabId, result.response?.state);
+      return { ok: true, state: result.response?.state };
+    }
+    return { ok: false, error: result.response?.error || 'Unknown response' };
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) };
+  }
+}
+
 // 处理标签页连接和消息发送的通用函数
 async function handleTabCommand(commandType) {
   try {
@@ -156,15 +272,10 @@ async function handleTabCommand(commandType) {
       return;
     }
 
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
-      return;
-    }
-
-    if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
+    // 内部会检查标签页连接状态，并在必要时进行重连
+    const result = await sendMessageToTabWithReconnect(tab.id, { type: commandType });
+    if (!result.ok) {
+      console.warn(`处理${commandType}命令失败:`, result.error);
     }
   } catch (error) {
     console.error(`处理${commandType}命令失败:`, error);
@@ -175,15 +286,10 @@ async function handleTabCommand(commandType) {
 chrome.action.onClicked.addListener(async (tab) => {
   console.log('扩展图标被点击');
   try {
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-      return;
-    }
-
-    if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+    // 内部会检查标签页连接状态，并在必要时进行重连
+    const result = await sendMessageToTabWithReconnect(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+    if (!result.ok) {
+      console.warn('处理切换失败:', result.error);
     }
   } catch (error) {
     console.error('处理切换失败:', error);
@@ -198,6 +304,22 @@ chrome.commands.onCommand.addListener(async (command) => {
     await handleTabCommand('TOGGLE_SIDEBAR_toggle_sidebar');
   } else if (command === 'new_chat') {
     await handleTabCommand('NEW_CHAT');
+  } else if (command === 'cerebr_toggle_debug_yield') {
+    try {
+      const result = await sendToActiveTab({ type: 'CEREBR_TOGGLE_YIELD', reason: 'COMMAND' });
+      if (!result.ok) {
+        console.warn(`${YIELD_GUARD_LOG_PREFIX} command toggle failed:`, result.error);
+        return;
+      }
+      syncYieldTabState(result.tabId, result.response?.state);
+      console.info(`${YIELD_GUARD_LOG_PREFIX} command toggle sent`, {
+        tabId: result.tabId,
+        ghostState: result.response?.state?.ghostState,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error(`${YIELD_GUARD_LOG_PREFIX} command toggle error:`, error);
+    }
   }
 });
 
@@ -215,6 +337,55 @@ chrome.runtime.onConnect.addListener((p) => {
 // 监听来自 content script 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
+
+  if (message.type === 'YIELD_STATE_CHANGED') {
+    const tabId = sender?.tab?.id;
+    syncYieldTabState(tabId, message?.state);
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message.type === 'GET_DEBUG_YIELD_STATE') {
+    (async () => {
+      try {
+        const tabId = sender?.tab?.id || (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+        if (!tabId) {
+          sendResponse({ ok: false, error: 'No active tab' });
+          return;
+        }
+        const result = await getYieldStateForTab(tabId);
+        if (!result.ok) {
+          sendResponse({ ok: false, error: result.error || 'Failed to get state' });
+          return;
+        }
+        sendResponse({ ok: true, tabId, state: result.state });
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || String(error) });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'SET_DEBUG_YIELD_STATE') {
+    (async () => {
+      try {
+        const tabId = sender?.tab?.id || (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+        if (!tabId) {
+          sendResponse({ ok: false, error: 'No active tab' });
+          return;
+        }
+        const result = await setYieldStateForTab(tabId, !!message.enable, message.reason || 'PREFERENCES');
+        if (!result.ok) {
+          sendResponse({ ok: false, error: result.error || 'Failed to set state' });
+          return;
+        }
+        sendResponse({ ok: true, tabId, state: result.state });
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || String(error) });
+      }
+    })();
+    return true;
+  }
 
   if (message.type === 'ENSURE_PDFJS') {
     (async () => {
@@ -366,6 +537,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'CONTENT_LOADED') {
     // console.log('内容脚本已加载:', message.url);
+    const tabId = sender?.tab?.id;
+    if (tabId && yieldEnabledTabs.has(tabId)) {
+      void (async () => {
+        // 每次导航后自动重套用 yielding，避免新文档恢复为 ACTIVE。
+        const applied = await ensureYieldStateApplied(
+          tabId,
+          true,
+          'REAPPLY_AFTER_NAVIGATION'
+        );
+        if (applied.ok) {
+          console.info(`${YIELD_GUARD_LOG_PREFIX} reapply after navigation`, {
+            tabId,
+            ghostState: applied.state?.ghostState,
+            timestamp: Date.now()
+          });
+        } else {
+          console.warn(`${YIELD_GUARD_LOG_PREFIX} reapply failed`, {
+            tabId,
+            error: applied.error,
+            timestamp: Date.now()
+          });
+        }
+      })();
+    }
     sendResponse({ status: 'ok', timestamp: new Date().toISOString() });
     return false;
   }

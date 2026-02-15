@@ -4,6 +4,7 @@
   "action_open_sidebar": { "message": "開啟 Cerebr 側邊欄" },
   "command_toggle_sidebar_description": { "message": "開啟/關閉 Cerebr 側邊欄" },
   "command_new_chat_description": { "message": "建立新的對話" },
+  "command_debug_compat_mode_description": { "message": "切換偵錯相容模式" },
 
   "context_menu_label": { "message": "訊息操作選單" },
   "context_copy_message": { "message": "複製訊息" },
@@ -55,6 +56,12 @@
   "font_size_xlarge": { "message": "特大" },
   "preferences_language_label": { "message": "語言" },
   "preferences_language_aria": { "message": "語言設定" },
+  "preferences_debug_compat_mode": { "message": "偵錯相容模式" },
+  "preferences_debug_compat_mode_aria": { "message": "偵錯相容模式開關" },
+  "preferences_debug_compat_mode_hint": { "message": "啟用後會暫停送出請求，關閉後可恢復正常送出。" },
+  "debug_compat_notice_title_active": { "message": "偵錯相容模式啟用中" },
+  "debug_compat_notice_hint_active": { "message": "目前暫停送出請求，請關閉偵錯相容模式後再送出。" },
+  "yield_placeholder_resume_button": { "message": "恢復 Cerebr 面板" },
   "language_auto": { "message": "自動" },
   "language_en": { "message": "English" },
   "language_zh_cn": { "message": "简体中文" },
@@ -82,6 +89,7 @@
   "toast_copy_math_failed": { "message": "複製公式失敗" },
   "toast_no_math_found": { "message": "沒有找到可複製的公式" },
   "toast_handle_image_failed": { "message": "處理圖片失敗" },
+  "toast_debug_compat_send_blocked": { "message": "偵錯相容模式下已暫停送出請求" },
   "toast_empty_response": { "message": "模型未回傳任何內容，可嘗試重試" },
 
   "label_thinking": { "message": "正在思考" },

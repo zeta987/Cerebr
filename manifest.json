@@ -47,6 +47,9 @@
         "mac": "MacCtrl+X"
       },
       "description": "__MSG_command_new_chat_description__"
+    },
+    "cerebr_toggle_debug_yield": {
+      "description": "__MSG_command_debug_compat_mode_description__"
     }
   },
   "background": {
@@ -56,7 +59,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["content.js", "src/utils/ghost-controller.js"],
       "run_at": "document_start"
     }
   ],
