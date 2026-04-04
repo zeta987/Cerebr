@@ -1688,6 +1688,10 @@ const onDomReady = async () => {
         });
     }
 
+    // DESIGN NOTE — API keys are exported in plaintext intentionally.
+    // The primary use case is personal backup/restore and cross-device migration.
+    // The export confirmation dialog already warns the user.  Masking keys would
+    // break the restore workflow (the user would have to re-enter every key).
     const collectAllSettings = async () => {
         const SYSTEM_PROMPT_KEY_PREFIX_LOCAL = 'apiConfigSystemPrompt_';
         const getPromptKey = (id) => `${SYSTEM_PROMPT_KEY_PREFIX_LOCAL}${id}`;
