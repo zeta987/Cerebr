@@ -685,8 +685,8 @@ export function initMessageInput(config) {
             clearEditableContent(this);
         }
 
-        // Slash command detection
-        const plainText = messageInput.textContent || '';
+        // Slash command detection (strip \u200B left by chip cursor placeholder)
+        const plainText = (messageInput.textContent || '').replace(/\u200B/g, '');
         const hasChip = messageInput.querySelector('.slash-command-chip');
         if (!hasChip && plainText.startsWith('/')) {
             document.dispatchEvent(new CustomEvent('cerebr:slashCommandQuery', {
@@ -730,7 +730,7 @@ export function initMessageInput(config) {
         // Re-trigger slash command detection after IME composition finalizes.
         // setTimeout(0) ensures DOM textContent reflects the committed text.
         setTimeout(() => {
-            const plainText = messageInput.textContent || '';
+            const plainText = (messageInput.textContent || '').replace(/\u200B/g, '');
             const hasChip = messageInput.querySelector('.slash-command-chip');
             if (!hasChip && plainText.startsWith('/')) {
                 document.dispatchEvent(new CustomEvent('cerebr:slashCommandQuery', {
