@@ -727,6 +727,19 @@ export function initMessageInput(config) {
 
     messageInput.addEventListener('compositionend', () => {
         isComposing = false;
+        // Re-trigger slash command detection after IME composition finalizes.
+        // setTimeout(0) ensures DOM textContent reflects the committed text.
+        setTimeout(() => {
+            const plainText = messageInput.textContent || '';
+            const hasChip = messageInput.querySelector('.slash-command-chip');
+            if (!hasChip && plainText.startsWith('/')) {
+                document.dispatchEvent(new CustomEvent('cerebr:slashCommandQuery', {
+                    detail: { query: plainText.slice(1) }
+                }));
+            } else if (!hasChip) {
+                document.dispatchEvent(new CustomEvent('cerebr:slashCommandDismiss'));
+            }
+        }, 0);
     });
 
     messageInput.addEventListener('beforeinput', (e) => {
