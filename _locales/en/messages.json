@@ -65,6 +65,8 @@
   "language_zh_cn": { "message": "简体中文" },
   "language_zh_tw": { "message": "繁體中文" },
 
+  "preferences_export": { "message": "Export Settings" },
+  "preferences_import": { "message": "Import Settings" },
   "preferences_feedback": { "message": "Feedback" },
   "preferences_feedback_action": { "message": "Open GitHub" },
 
@@ -88,6 +90,10 @@
   "toast_no_math_found": { "message": "No formula found to copy" },
   "toast_handle_image_failed": { "message": "Failed to process image" },
   "toast_empty_response": { "message": "No response returned by the model" },
+  "toast_export_success": { "message": "Settings exported. File contains sensitive data (API keys), please keep it safe." },
+  "toast_import_success": { "message": "Settings imported successfully" },
+  "toast_import_error_format": { "message": "Invalid file format" },
+  "toast_import_error_version": { "message": "Unsupported settings version" },
 
   "label_thinking": { "message": "Thinking" },
   "label_copy": { "message": "Copy" },
@@ -116,6 +122,10 @@
 
   "label_image": { "message": "Image" },
   "label_delete_image": { "message": "Delete image" },
+
+  "dialog_cancel": { "message": "Cancel" },
+  "dialog_confirm": { "message": "Confirm" },
+  "import_confirm_message": { "message": "This will overwrite all current settings including API keys, system prompts, and preferences. Continue?" },
 
   "error_api_config_incomplete": { "message": "API config is incomplete" },
   "error_response_unreadable": { "message": "Response body is unreadable" },
