@@ -1747,9 +1747,12 @@ const onDomReady = async () => {
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            const date = new Date().toISOString().slice(0, 10);
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const datePart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+            const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
             a.href = url;
-            a.download = `cerebr-settings-${date}.json`;
+            a.download = `cerebr-settings-${datePart}_${timePart}.json`;
             a.click();
             URL.revokeObjectURL(url);
             showToast(t('toast_export_success'), { type: 'warning', durationMs: 4000 });
