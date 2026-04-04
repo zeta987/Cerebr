@@ -112,6 +112,12 @@
                     <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
+            <div class="menu-item" id="slash-commands-toggle" role="menuitem" tabindex="0">
+                <span data-i18n="settings_slash_commands">快速命令</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </div>
             <div class="menu-item" id="preferences-toggle" role="menuitem" tabindex="0">
                 <span data-i18n="settings_preferences">偏好设置</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -124,6 +130,7 @@
             <div id="message-input" contenteditable="true" placeholder="输入消息..." enterkeyhint="send" role="textbox" aria-label="消息输入框" aria-multiline="true" spellcheck="true" data-i18n-attr="placeholder:message_input_placeholder;aria-label:message_input_aria"></div>
             <div class="fake-caret" aria-hidden="true"></div>
         </div>
+        <div id="slash-command-menu" class="slash-command-menu" style="display: none;"></div>
     </div>
     <div id="api-settings">
         <div class="settings-header">
@@ -289,6 +296,46 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+    <div id="slash-commands-page">
+        <div class="settings-header">
+            <button class="back-button" aria-label="返回" data-i18n-attr="aria-label:aria_back">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <span class="settings-title" data-i18n="title_slash_commands">快速命令</span>
+        </div>
+        <div class="slash-commands-content">
+            <div class="slash-commands-cards">
+                <div class="slash-command-card template" style="display: none;">
+                    <div class="slash-cmd-field">
+                        <label data-i18n="slash_cmd_name_label">命令名稱</label>
+                        <input type="text" class="slash-cmd-name" placeholder="/translate" data-i18n-attr="placeholder:slash_cmd_name_placeholder">
+                    </div>
+                    <div class="slash-cmd-field">
+                        <label data-i18n="slash_cmd_label_label">顯示標籤</label>
+                        <input type="text" class="slash-cmd-label-input" placeholder="翻譯成英文" data-i18n-attr="placeholder:slash_cmd_label_placeholder">
+                    </div>
+                    <div class="slash-cmd-field">
+                        <label data-i18n="slash_cmd_prompt_label">Prompt</label>
+                        <textarea class="slash-cmd-prompt" rows="3"></textarea>
+                    </div>
+                    <div class="slash-cmd-actions">
+                        <button class="slash-cmd-delete-btn">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M3 4H13" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M5 4V12H11V4" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="empty-state" data-i18n="slash_cmd_empty">還沒有快速命令</div>
+            <button id="slash-cmd-add-btn" class="slash-cmd-add-btn">
+                <span data-i18n="slash_cmd_add">新增命令</span>
+            </button>
         </div>
     </div>
     <div class="image-preview-modal" role="dialog" aria-modal="true" aria-label="图片预览" data-i18n-attr="aria-label:image_preview_label">

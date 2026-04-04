@@ -23,6 +23,7 @@
   "settings_chat_list": { "message": "對話列表" },
   "settings_api_settings": { "message": "API 設定" },
   "settings_preferences": { "message": "偏好設定" },
+  "settings_slash_commands": { "message": "快速命令" },
 
   "message_input_placeholder": { "message": "輸入訊息..." },
   "message_input_placeholder_thinking": { "message": "正在思考..." },
@@ -43,6 +44,7 @@
   "api_system_prompt_label": { "message": "系統提示" },
 
   "title_preferences": { "message": "偏好設定" },
+  "title_slash_commands": { "message": "快速命令" },
   "preferences_version": { "message": "程式版本" },
   "preferences_open_source": { "message": "專案首頁" },
   "preferences_group": { "message": "交流群組" },
@@ -113,6 +115,15 @@
   "webpage_title_label": { "message": "標題" },
   "webpage_url_label": { "message": "URL" },
   "webpage_content_label": { "message": "內容" },
+
+  "slash_cmd_name_label": { "message": "命令名稱" },
+  "slash_cmd_name_placeholder": { "message": "translate" },
+  "slash_cmd_label_label": { "message": "命令簡介" },
+  "slash_cmd_label_placeholder": { "message": "翻譯成英文" },
+  "slash_cmd_prompt_label": { "message": "提示詞" },
+  "slash_cmd_prompt_placeholder": { "message": "請將以下內容翻譯成英文：" },
+  "slash_cmd_empty": { "message": "尚無快速命令" },
+  "slash_cmd_add": { "message": "新增命令" },
 
   "label_image": { "message": "圖片" },
   "label_delete_image": { "message": "刪除圖片" },

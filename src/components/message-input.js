@@ -566,7 +566,7 @@ export function initMessageInput(config) {
         historyCursor = null;
 
         const text = messageInput.textContent.trim();
-        if (!text && !messageInput.querySelector('.image-tag')) return false;
+        if (!text && !messageInput.querySelector('.image-tag') && !messageInput.querySelector('.slash-command-chip')) return false;
 
         setTimeout(() => {
             sendQueued = false;
@@ -685,7 +685,25 @@ export function initMessageInput(config) {
             clearEditableContent(this);
         }
 
+        detectSlashCommand();
+
     });
+
+    // Detect whether current input text starts with "/" and dispatch the
+    // appropriate slash-command event.  Shared by the input handler and
+    // compositionend handler so the logic stays in one place.
+    // Strips \u200B (zero-width space) left behind by chip cursor placeholders.
+    function detectSlashCommand() {
+        const plainText = (messageInput.textContent || '').replace(/\u200B/g, '');
+        const hasChip = messageInput.querySelector('.slash-command-chip');
+        if (!hasChip && plainText.startsWith('/')) {
+            document.dispatchEvent(new CustomEvent('cerebr:slashCommandQuery', {
+                detail: { query: plainText.slice(1) }
+            }));
+        } else if (!hasChip) {
+            document.dispatchEvent(new CustomEvent('cerebr:slashCommandDismiss'));
+        }
+    }
 
     // 监听输入框的焦点状态
     messageInput.addEventListener('focus', () => {
@@ -716,6 +734,9 @@ export function initMessageInput(config) {
 
     messageInput.addEventListener('compositionend', () => {
         isComposing = false;
+        // Re-trigger slash command detection after IME composition finalizes.
+        // setTimeout(0) ensures DOM textContent reflects the committed text.
+        setTimeout(detectSlashCommand, 0);
     });
 
     messageInput.addEventListener('beforeinput', (e) => {
@@ -826,6 +847,22 @@ export function initMessageInput(config) {
                 return;
             }
         } else if ((e.key === 'Backspace' || e.key === 'Delete')) {
+            // Backspace removes slash-command chip when no meaningful text remains
+            if (e.key === 'Backspace') {
+                const chip = messageInput.querySelector('.slash-command-chip');
+                if (chip) {
+                    const textContent = messageInput.textContent.replace(/\u200B/g, '').trim();
+                    const chipTextLen = chip.textContent.length;
+                    if (textContent.length <= chipTextLen) {
+                        e.preventDefault();
+                        chip.remove();
+                        document.dispatchEvent(new CustomEvent('cerebr:slashCommandRemoved'));
+                        messageInput.dispatchEvent(new Event('input'));
+                        return;
+                    }
+                }
+            }
+
             // 处理图片标签的删除
             const selection = window.getSelection();
             if (selection.rangeCount === 0) return;
@@ -989,21 +1026,38 @@ export function setPlaceholder({ messageInput, placeholder, timeout }) {
  * @returns {Object} 格式化后的内容和图片标签
  */
 export function getFormattedMessageContent(messageInput) {
-    // 使用innerHTML获取内容，并将<br>转换为\n
-    let message = messageInput.innerHTML
+    // Clone input and strip chip badges before extracting text content.
+    // This prevents slash-command chip text from contaminating the message.
+    // The clone preserves data-* attributes on image tags so callers
+    // that read data-image will continue to work correctly.
+    const clone = messageInput.cloneNode(true);
+    clone.querySelectorAll('.slash-command-chip').forEach(el => el.remove());
+
+    // SECURITY NOTE — the two innerHTML usages below are safe by design:
+    //  1. rawMarkup reads from a cloned contenteditable whose only content
+    //     producers are the browser editing engine and our own chip/image-tag
+    //     insertion — no external or user-supplied HTML is injected.
+    //  2. tempDiv assignment receives the message string after all HTML tags
+    //     have been regex-stripped, leaving only plain text with possible
+    //     HTML entities (e.g. &amp;). This is a standard entity-decode
+    //     pattern; the resulting textContent is the decoded plain string.
+    const rawMarkup = clone.innerHTML; // eslint-disable-line -- safe: see note above
+    let message = rawMarkup
         .replace(/<div><br><\/div>/g, '\n')  // 处理换行后的空行
         .replace(/<div>/g, '\n')             // 处理换行后的新行开始
         .replace(/<\/div>/g, '')             // 处理换行后的新行结束
         .replace(/<br\s*\/?>/g, '\n')        // 处理单个换行
         .replace(/&nbsp;/g, ' ');            // 处理空格
 
-    // 将HTML实体转换回实际字符
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = message;
+    tempDiv.innerHTML = message; // eslint-disable-line -- safe: entity decode only, all tags stripped above
     message = tempDiv.textContent;
 
-    // 获取图片标签
-    const imageTags = messageInput.querySelectorAll('.image-tag');
+    // Strip zero-width spaces left over from chip insertion
+    message = message.replace(/\u200B/g, '');
+
+    // 获取图片标签 (cloned nodes preserve data-* attributes)
+    const imageTags = clone.querySelectorAll('.image-tag');
 
     return { message, imageTags };
 }

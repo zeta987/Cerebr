@@ -35,6 +35,20 @@ let userQuestions = [];
 let apiConfigs = [];
 let selectedConfigIndex = 0;
 
+// Slash commands state
+let slashCommands = [];
+const SLASH_COMMANDS_KEY = 'cerebr_slash_commands_v1';
+let slashCommandsSaveTimer = null;
+let slashCommandMenuVisible = false;
+let slashCommandSelectedIndex = 0;
+let activeSlashCommand = null;
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 const onDomReady = async () => {
     try {
         await initI18n();
@@ -57,6 +71,7 @@ const onDomReady = async () => {
         const chatListButton = document.getElementById('chat-list');
         const apiSettings = document.getElementById('api-settings');
         const preferencesSettings = document.getElementById('preferences-settings');
+        const slashCommandsPage = document.getElementById('slash-commands-page');
         const deleteMessageButton = document.getElementById('delete-message');
         const regenerateMessageButton = document.getElementById('regenerate-message');
         const webpageQAContainer = document.getElementById('webpage-qa');
@@ -913,15 +928,48 @@ const onDomReady = async () => {
 
         try {
             const stickToBottomOnSend = shouldStickToBottom(chatContainer);
-            // 构建用户消息
+
+            // Slash command prompt injection:
+            // displayContent is shown in UI (what the user typed),
+            // apiContent includes the slash command prompt prepended (sent to API + chat history).
+            let apiContent = content;
+            let slashCommandLabel = null;
+            if (activeSlashCommand) {
+                slashCommandLabel = activeSlashCommand.name || activeSlashCommand.label || null;
+                const prompt = activeSlashCommand.prompt || '';
+                if (prompt) {
+                    if (typeof content === 'string') {
+                        apiContent = content.trim() ? prompt + '\n\n' + content : prompt;
+                    } else if (Array.isArray(content)) {
+                        const firstTextIdx = content.findIndex(item => item.type === 'text');
+                        if (firstTextIdx >= 0) {
+                            apiContent = content.map((item, i) =>
+                                i === firstTextIdx
+                                    ? { ...item, text: prompt + '\n\n' + item.text }
+                                    : item
+                            );
+                        } else {
+                            apiContent = [{ type: 'text', text: prompt }, ...content];
+                        }
+                    }
+                }
+                activeSlashCommand = null;
+                messageInput.querySelector('.slash-command-chip')?.remove();
+            }
+
+            // Display message shows original content (without injected prompt) + optional badge label
+            const displayMessage = { role: "user", content: content, slashCommandLabel };
+            // API message includes the slash command prompt prepended.
+            // displayContent + slashCommandLabel are persisted so history reload shows the badge, not the raw prompt.
             const userMessage = {
                 role: "user",
-                content
+                content: apiContent,
+                ...(slashCommandLabel && { displayContent: content, slashCommandLabel })
             };
 
-            // 先添加用户消息到界面和历史记录
+            // 先添加用户消息到界面（display version only）
             appendMessage({
-                text: userMessage,
+                text: displayMessage,
                 sender: 'user',
                 chatContainer,
             });
@@ -997,7 +1045,8 @@ const onDomReady = async () => {
     async function sendMessage() {
         // 获取格式化后的消息内容
         const { message, imageTags } = getFormattedMessageContent(messageInput);
-        if (!message.trim() && imageTags.length === 0) return;
+        const hasSlashCommand = !!messageInput.querySelector('.slash-command-chip');
+        if (!message.trim() && imageTags.length === 0 && !hasSlashCommand) return;
 
         // 构建消息内容
         const content = buildMessageContent(message, imageTags);
@@ -2108,8 +2157,281 @@ const onDomReady = async () => {
         }
     }
 
+    // ── Slash Commands CRUD ───────────────────────────────────────
+
+    function saveSlashCommands() {
+        clearTimeout(slashCommandsSaveTimer);
+        slashCommandsSaveTimer = setTimeout(async () => {
+            await storageAdapter.set({ [SLASH_COMMANDS_KEY]: slashCommands });
+        }, 500);
+    }
+
+    function renderSlashCommandCards() {
+        const container = document.querySelector('#slash-commands-page .slash-commands-cards');
+        if (!container) return;
+        // Remove non-template cards
+        container.querySelectorAll('.slash-command-card:not(.template)').forEach(el => el.remove());
+        const template = container.querySelector('.slash-command-card.template');
+        const emptyState = document.querySelector('#slash-commands-page .empty-state');
+
+        if (slashCommands.length === 0) {
+            if (emptyState) emptyState.style.display = '';
+            return;
+        }
+        if (emptyState) emptyState.style.display = 'none';
+
+        slashCommands.forEach(cmd => {
+            const card = template.cloneNode(true);
+            card.classList.remove('template');
+            card.style.display = '';
+            card.dataset.commandId = cmd.id;
+
+            card.querySelector('.slash-cmd-name').value = cmd.name || '';
+            card.querySelector('.slash-cmd-label-input').value = cmd.label || '';
+            card.querySelector('.slash-cmd-prompt').value = cmd.prompt || '';
+
+            // Input change handlers
+            card.querySelector('.slash-cmd-name').addEventListener('input', (e) => {
+                cmd.name = e.target.value;
+                cmd.updatedAt = Date.now();
+                saveSlashCommands();
+            });
+            card.querySelector('.slash-cmd-label-input').addEventListener('input', (e) => {
+                cmd.label = e.target.value;
+                cmd.updatedAt = Date.now();
+                saveSlashCommands();
+            });
+            card.querySelector('.slash-cmd-prompt').addEventListener('input', (e) => {
+                cmd.prompt = e.target.value;
+                cmd.updatedAt = Date.now();
+                saveSlashCommands();
+            });
+
+            // Delete handler
+            card.querySelector('.slash-cmd-delete-btn').addEventListener('click', () => {
+                slashCommands = slashCommands.filter(c => c.id !== cmd.id);
+                saveSlashCommands();
+                renderSlashCommandCards();
+            });
+
+            container.appendChild(card);
+        });
+        applyI18n(container);
+    }
+
+    async function loadSlashCommands() {
+        const stored = await storageAdapter.get(SLASH_COMMANDS_KEY);
+        slashCommands = stored?.[SLASH_COMMANDS_KEY] || [];
+        renderSlashCommandCards();
+    }
+
+    document.getElementById('slash-cmd-add-btn')?.addEventListener('click', () => {
+        slashCommands.push({
+            id: generateConfigId(),
+            name: '',
+            label: '',
+            prompt: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        });
+        saveSlashCommands();
+        renderSlashCommandCards();
+    });
+
+    // Slash commands settings page toggle
+    document.getElementById('slash-commands-toggle')?.addEventListener('click', () => {
+        slashCommandsPage?.classList?.add('visible');
+        closeSettingsMenu();
+    });
+
+    // Slash commands page back button
+    const slashCommandsBackButton = slashCommandsPage?.querySelector('.back-button');
+    if (slashCommandsBackButton && slashCommandsPage) {
+        slashCommandsBackButton.addEventListener('click', () => {
+            slashCommandsPage.classList.remove('visible');
+        });
+    }
+
+    // ── Slash Command Popup Menu ────────────────────────────────────
+
+    document.addEventListener('cerebr:slashCommandQuery', (e) => {
+        const query = e.detail?.query || '';
+        showSlashCommandMenu(query);
+    });
+
+    document.addEventListener('cerebr:slashCommandDismiss', () => {
+        hideSlashCommandMenu();
+    });
+
+    document.addEventListener('cerebr:slashCommandRemoved', () => {
+        activeSlashCommand = null;
+    });
+
+    function showSlashCommandMenu(query) {
+        const menu = document.getElementById('slash-command-menu');
+        if (!menu) return;
+
+        // Fuzzy match: filter commands whose name or label contains the query
+        const matches = slashCommands.filter(cmd => {
+            const q = query.toLowerCase();
+            return (cmd.name || '').toLowerCase().includes(q) ||
+                   (cmd.label || '').toLowerCase().includes(q);
+        });
+
+        if (matches.length === 0) {
+            hideSlashCommandMenu();
+            return;
+        }
+
+        menu.textContent = '';
+        matches.forEach((cmd, i) => {
+            const item = document.createElement('div');
+            item.className = 'slash-command-item' + (i === 0 ? ' selected' : '');
+            item.dataset.commandId = cmd.id;
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'slash-command-item-name';
+            nameSpan.textContent = cmd.name || cmd.id;
+
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'slash-command-item-label';
+            labelSpan.textContent = cmd.label || '';
+
+            item.appendChild(nameSpan);
+            item.appendChild(labelSpan);
+            item.addEventListener('click', () => selectSlashCommand(cmd));
+            menu.appendChild(item);
+        });
+
+        slashCommandSelectedIndex = 0;
+        menu.style.display = '';
+        slashCommandMenuVisible = true;
+    }
+
+    function hideSlashCommandMenu() {
+        const menu = document.getElementById('slash-command-menu');
+        if (menu) {
+            menu.style.display = 'none';
+            menu.textContent = '';
+        }
+        slashCommandMenuVisible = false;
+    }
+
+    // ── Keyboard Navigation for Slash Command Menu ─────────────────
+
+    document.addEventListener('keydown', (e) => {
+        if (!slashCommandMenuVisible) return;
+
+        const menu = document.getElementById('slash-command-menu');
+        const items = menu?.querySelectorAll('.slash-command-item');
+        if (!items?.length) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            e.stopPropagation();
+            slashCommandSelectedIndex = Math.min(slashCommandSelectedIndex + 1, items.length - 1);
+            updateSlashMenuSelection(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            slashCommandSelectedIndex = Math.max(slashCommandSelectedIndex - 1, 0);
+            updateSlashMenuSelection(items);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            const selectedItem = items[slashCommandSelectedIndex];
+            const cmdId = selectedItem?.dataset.commandId;
+            const cmd = slashCommands.find(c => c.id === cmdId);
+            if (cmd) selectSlashCommand(cmd);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            hideSlashCommandMenu();
+        }
+    }, true);  // capture phase
+
+    function updateSlashMenuSelection(items) {
+        items.forEach((item, i) => {
+            item.classList.toggle('selected', i === slashCommandSelectedIndex);
+        });
+        // Scroll selected item into view
+        items[slashCommandSelectedIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+
+    // ── Slash Command Selection & Chip ──────────────────────────────
+
+    function selectSlashCommand(cmd) {
+        activeSlashCommand = cmd;
+        hideSlashCommandMenu();
+        insertSlashCommandChip(cmd);
+    }
+
+    function insertSlashCommandChip(cmd) {
+        const input = document.getElementById('message-input');
+        if (!input) return;
+
+        // Remove existing chip if any
+        input.querySelector('.slash-command-chip')?.remove();
+
+        // Clear only text nodes (preserve image tags and other elements)
+        const walker = document.createTreeWalker(input, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+        while (walker.nextNode()) textNodes.push(walker.currentNode);
+        textNodes.forEach(node => node.remove());
+
+        // Create chip
+        const chip = document.createElement('span');
+        chip.className = 'slash-command-chip';
+        chip.contentEditable = 'false';
+        chip.dataset.commandId = cmd.id;
+
+        const label = document.createElement('span');
+        label.className = 'chip-label';
+        label.textContent = cmd.name || cmd.label || cmd.id;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'chip-remove-btn';
+        removeBtn.setAttribute('aria-label', 'Remove command');
+        removeBtn.textContent = '\u00D7';
+        removeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            chip.remove();
+            activeSlashCommand = null;
+            document.dispatchEvent(new CustomEvent('cerebr:slashCommandRemoved'));
+            input.dispatchEvent(new Event('input'));
+            input.focus();
+        });
+
+        chip.appendChild(label);
+        chip.appendChild(removeBtn);
+
+        // Insert chip at start, then add a space after for typing
+        input.insertBefore(chip, input.firstChild);
+
+        // Move cursor after chip
+        const range = document.createRange();
+        const sel = window.getSelection();
+        // Place cursor after the chip
+        if (chip.nextSibling) {
+            range.setStartBefore(chip.nextSibling);
+        } else {
+            // Add a text node for cursor placement
+            const textNode = document.createTextNode('\u200B'); // zero-width space
+            input.appendChild(textNode);
+            range.setStartAfter(chip);
+        }
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        input.focus();
+    }
+
+    // ── End of Slash Commands ───────────────────────────────────────
+
     // 等待 DOM 加载完成后再初始化
     await loadAPIConfigs();
+    await loadSlashCommands();
 
     // 显示/隐藏 API 设置
     apiSettingsToggle?.addEventListener('click', () => {
@@ -2194,6 +2516,11 @@ const onDomReady = async () => {
 
         if (apiSettings?.classList?.contains('visible')) {
             apiSettings.classList.remove('visible');
+            handled = true;
+        }
+
+        if (slashCommandsPage?.classList?.contains('visible')) {
+            slashCommandsPage.classList.remove('visible');
             handled = true;
         }
 

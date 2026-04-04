@@ -23,6 +23,7 @@
   "settings_chat_list": { "message": "对话列表" },
   "settings_api_settings": { "message": "API 设置" },
   "settings_preferences": { "message": "偏好设置" },
+  "settings_slash_commands": { "message": "快捷命令" },
 
   "message_input_placeholder": { "message": "输入消息..." },
   "message_input_placeholder_thinking": { "message": "正在思考..." },
@@ -43,6 +44,7 @@
   "api_system_prompt_label": { "message": "系统提示" },
 
   "title_preferences": { "message": "偏好设置" },
+  "title_slash_commands": { "message": "快捷命令" },
   "preferences_version": { "message": "版本号" },
   "preferences_open_source": { "message": "开源地址" },
   "preferences_group": { "message": "交流群" },
@@ -113,6 +115,15 @@
   "webpage_title_label": { "message": "标题" },
   "webpage_url_label": { "message": "URL" },
   "webpage_content_label": { "message": "内容" },
+
+  "slash_cmd_name_label": { "message": "命令名称" },
+  "slash_cmd_name_placeholder": { "message": "translate" },
+  "slash_cmd_label_label": { "message": "命令简介" },
+  "slash_cmd_label_placeholder": { "message": "翻译成英文" },
+  "slash_cmd_prompt_label": { "message": "提示词" },
+  "slash_cmd_prompt_placeholder": { "message": "请将以下内容翻译成英文：" },
+  "slash_cmd_empty": { "message": "暂无快捷命令" },
+  "slash_cmd_add": { "message": "新增命令" },
 
   "label_image": { "message": "图片" },
   "label_delete_image": { "message": "删除图片" },
