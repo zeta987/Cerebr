@@ -147,6 +147,36 @@ async function reinjectContentScript(tabId) {
   }
 }
 
+async function sendMessageToTabWithReconnect(tabId, payload) {
+  if (!tabId) {
+    return { ok: false, error: 'Missing tabId' };
+  }
+
+  // 检查标签页是否已连接
+  let isConnected = await isTabConnected(tabId);
+  if (!isConnected) {
+    // 未连接时尝试重新注入 content script
+    isConnected = await reinjectContentScript(tabId);
+  }
+
+  if (!isConnected) {
+    return { ok: false, error: 'Content script not connected' };
+  }
+
+  const response = await chrome.tabs.sendMessage(tabId, payload);
+  return { ok: true, response };
+}
+
+async function sendToActiveTab(payload) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    return { ok: false, error: 'No active tab' };
+  }
+
+  const result = await sendMessageToTabWithReconnect(tab.id, payload);
+  return { ...result, tabId: tab.id };
+}
+
 // 处理标签页连接和消息发送的通用函数
 async function handleTabCommand(commandType) {
   try {
@@ -156,15 +186,10 @@ async function handleTabCommand(commandType) {
       return;
     }
 
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
-      return;
-    }
-
-    if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
+    // 内部会检查标签页连接状态，并在必要时进行重连
+    const result = await sendMessageToTabWithReconnect(tab.id, { type: commandType });
+    if (!result.ok) {
+      console.warn(`处理${commandType}命令失败:`, result.error);
     }
   } catch (error) {
     console.error(`处理${commandType}命令失败:`, error);
@@ -175,15 +200,10 @@ async function handleTabCommand(commandType) {
 chrome.action.onClicked.addListener(async (tab) => {
   console.log('扩展图标被点击');
   try {
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-      return;
-    }
-
-    if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+    // 内部会检查标签页连接状态，并在必要时进行重连
+    const result = await sendMessageToTabWithReconnect(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
+    if (!result.ok) {
+      console.warn('处理切换失败:', result.error);
     }
   } catch (error) {
     console.error('处理切换失败:', error);

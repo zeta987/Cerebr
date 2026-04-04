@@ -415,7 +415,6 @@ const onDomReady = async () => {
     // pendingAbort 用于处理“首 token 前”用户立刻点停止的情况
     const abortControllerRef = { current: null, pendingAbort: false };
     let currentController = null;
-
     // 创建UI工具配置
     const uiConfig = {
         textarea: {
@@ -673,9 +672,25 @@ const onDomReady = async () => {
             // ignore
         }
     };
-
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
+        const data = event?.data;
+        if (data?.type === 'CEREBR_SIDEBAR_WILL_HIDE') {
+            // Save draft and flush state before iframe is unmounted
+            try {
+                const currentChat = chatManager.getCurrentChat();
+                if (currentChat?.id) {
+                    const { message: draftText } = getFormattedMessageContent(messageInput);
+                    if (draftText?.trim()) {
+                        void storageAdapter.set({ [draftKeyForChatId(currentChat.id)]: draftText });
+                    }
+                }
+                void chatManager.flushNow().catch(() => {});
+                void readingProgressManager?.saveNow?.().catch(() => {});
+            } catch { /* ignore */ }
+            return;
+        }
+
         // 使用消息输入组件的窗口消息处理函数
         handleWindowMessage(event, {
             messageInput,
@@ -887,30 +902,21 @@ const onDomReady = async () => {
         }
     }
 
-    async function sendMessage() {
-        // 如果有正在更新的AI消息，停止它
+    async function sendPreparedMessage(content) {
         const updatingMessage = chatContainer.querySelector('.ai-message.updating');
         if (updatingMessage && currentController) {
             currentController.abort();
             currentController = null;
-            abortControllerRef.current = null; // 同步更新引用对象
+            abortControllerRef.current = null;
             updatingMessage.classList.remove('updating');
         }
 
-        // 获取格式化后的消息内容
-        const { message, imageTags } = getFormattedMessageContent(messageInput);
-
-        if (!message.trim() && imageTags.length === 0) return;
-
         try {
             const stickToBottomOnSend = shouldStickToBottom(chatContainer);
-            // 构建消息内容
-            const content = buildMessageContent(message, imageTags);
-
             // 构建用户消息
             const userMessage = {
                 role: "user",
-                content: content
+                content
             };
 
             // 先添加用户消息到界面和历史记录
@@ -925,17 +931,19 @@ const onDomReady = async () => {
             messageInput.focus();
             setThinkingPlaceholder();
 
-            // 构建消息数组
             const currentChat = chatManager.getCurrentChat();
-            if (currentChat?.id) {
+            if (!currentChat) {
+                throw new Error('当前没有活动对话');
+            }
+            if (currentChat.id) {
                 await storageAdapter.remove(draftKeyForChatId(currentChat.id));
             }
-            const messages = currentChat ? [...currentChat.messages] : [];  // 从chatManager获取消息历史
+
+            const messages = [...currentChat.messages];
             messages.push(userMessage);
             await chatManager.addMessageToCurrentChat(userMessage);
             await chatManager.flushNow().catch(() => {});
 
-            // 准备API调用参数
             const apiParams = {
                 messages,
                 apiConfig: apiConfigs[selectedConfigIndex],
@@ -943,7 +951,6 @@ const onDomReady = async () => {
                 webpageInfo: isExtensionEnvironment ? await getEnabledTabsContent() : null
             };
 
-            // 首 token 前占位：减少“没反应”的体感
             void appendMessage({
                 text: '',
                 sender: 'ai',
@@ -962,11 +969,9 @@ const onDomReady = async () => {
                 return chatContainerManager.syncMessage(updatedChatId, message);
             };
 
-            // 调用带重试逻辑的 API
             await callAPIWithRetry(apiParams, chatManager, currentChat.id, onMessageUpdate);
             await chatManager.flushNow().catch(() => {});
             await readingProgressManager.saveNow().catch(() => {});
-
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('用户手动停止更新');
@@ -975,7 +980,6 @@ const onDomReady = async () => {
             console.error('发送消息失败:', error);
             showToast(t('error_send_failed', [error.message]), { type: 'error', durationMs: 2200 });
         } finally {
-            // Best-effort: avoid losing the last question/answer on refresh.
             void chatManager.flushNow().catch(() => {});
             void readingProgressManager.saveNow().catch(() => {});
             restoreDefaultPlaceholder();
@@ -988,6 +992,16 @@ const onDomReady = async () => {
                 }
             }
         }
+    }
+
+    async function sendMessage() {
+        // 获取格式化后的消息内容
+        const { message, imageTags } = getFormattedMessageContent(messageInput);
+        if (!message.trim() && imageTags.length === 0) return;
+
+        // 构建消息内容
+        const content = buildMessageContent(message, imageTags);
+        await sendPreparedMessage(content);
     }
 
     let settingsMenuOpenMode = null;

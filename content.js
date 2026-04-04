@@ -283,6 +283,7 @@ class CerebrSidebar {
       this.isVisible = !!state?.isVisible;
 
       if (this.isVisible) {
+        this.mountIframe();
         this.sidebar.style.display = 'block';
         this.sidebar.classList.add('visible');
         this.requestInputFocus({ ensurePageLoadRetry: true });
@@ -796,26 +797,14 @@ class CerebrSidebar {
       const content = document.createElement('div');
       content.className = 'cerebr-sidebar__content';
 
-      const iframe = document.createElement('iframe');
-      iframe.className = 'cerebr-sidebar__iframe';
-      iframe.src = chrome.runtime.getURL('index.html');
-      iframe.allow = 'clipboard-write';
-      this.iframe = iframe;
-      this.resetIframeReadyState({ clearPendingCommands: true });
-      iframe.addEventListener('load', () => {
-        if (iframe !== this.iframe) return;
-        this.resetIframeReadyState();
-      });
+      this.iframe = null;
 
-      content.appendChild(iframe);
       this.sidebar.appendChild(header);
       this.sidebar.appendChild(resizer);
       this.sidebar.appendChild(content);
 
       shadow.appendChild(style);
       shadow.appendChild(this.sidebar);
-
-      this.setupIframeDragMessaging(iframe);
 
       // 先加载状态
       await this.loadState();
@@ -925,6 +914,36 @@ class CerebrSidebar {
     });
   }
 
+  mountIframe() {
+    if (this.iframe) return; // already mounted
+    const content = this.sidebar?.querySelector('.cerebr-sidebar__content');
+    if (!content) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.className = 'cerebr-sidebar__iframe';
+    iframe.src = chrome.runtime.getURL('index.html');
+    iframe.allow = 'clipboard-write';
+    this.iframe = iframe;
+    this.resetIframeReadyState({ clearPendingCommands: true });
+    iframe.addEventListener('load', () => {
+      if (iframe !== this.iframe) return;
+      this.resetIframeReadyState();
+    });
+    content.appendChild(iframe);
+    this.setupIframeDragMessaging(iframe);
+  }
+
+  unmountIframe() {
+    if (!this.iframe) return;
+    // Notify iframe to save state before removal
+    try {
+      this.iframe.contentWindow?.postMessage({ type: 'CEREBR_SIDEBAR_WILL_HIDE' }, '*');
+    } catch { /* ignore */ }
+    this.iframe.remove();
+    this.iframe = null;
+    this.resetIframeReadyState({ clearPendingCommands: true });
+  }
+
   toggle() {
     if (!this.initialized) return;
 
@@ -939,6 +958,7 @@ class CerebrSidebar {
           clearTimeout(this.hideTimeout);
           this.hideTimeout = null;
         }
+        this.mountIframe();
         this.sidebar.style.display = 'block';
         void this.sidebar.offsetWidth; // 强制重排以使过渡动画运行
         this.sidebar.classList.add('visible');
@@ -953,10 +973,12 @@ class CerebrSidebar {
         }
 
         if (!wasVisible) {
+          this.unmountIframe();
           this.sidebar.style.display = 'none';
         } else {
           this.hideTimeout = setTimeout(() => {
             if (!this.isVisible) {
+              this.unmountIframe();
               this.sidebar.style.display = 'none';
             }
             this.hideTimeout = null;
@@ -1070,6 +1092,7 @@ class CerebrSidebar {
 }
 
 let sidebar;
+
 try {
   sidebar = new CerebrSidebar();
   // console.log('侧边栏实例已创建');
