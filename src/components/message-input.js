@@ -685,7 +685,15 @@ export function initMessageInput(config) {
             clearEditableContent(this);
         }
 
-        // Slash command detection (strip \u200B left by chip cursor placeholder)
+        detectSlashCommand();
+
+    });
+
+    // Detect whether current input text starts with "/" and dispatch the
+    // appropriate slash-command event.  Shared by the input handler and
+    // compositionend handler so the logic stays in one place.
+    // Strips \u200B (zero-width space) left behind by chip cursor placeholders.
+    function detectSlashCommand() {
         const plainText = (messageInput.textContent || '').replace(/\u200B/g, '');
         const hasChip = messageInput.querySelector('.slash-command-chip');
         if (!hasChip && plainText.startsWith('/')) {
@@ -695,8 +703,7 @@ export function initMessageInput(config) {
         } else if (!hasChip) {
             document.dispatchEvent(new CustomEvent('cerebr:slashCommandDismiss'));
         }
-
-    });
+    }
 
     // 监听输入框的焦点状态
     messageInput.addEventListener('focus', () => {
@@ -729,17 +736,7 @@ export function initMessageInput(config) {
         isComposing = false;
         // Re-trigger slash command detection after IME composition finalizes.
         // setTimeout(0) ensures DOM textContent reflects the committed text.
-        setTimeout(() => {
-            const plainText = (messageInput.textContent || '').replace(/\u200B/g, '');
-            const hasChip = messageInput.querySelector('.slash-command-chip');
-            if (!hasChip && plainText.startsWith('/')) {
-                document.dispatchEvent(new CustomEvent('cerebr:slashCommandQuery', {
-                    detail: { query: plainText.slice(1) }
-                }));
-            } else if (!hasChip) {
-                document.dispatchEvent(new CustomEvent('cerebr:slashCommandDismiss'));
-            }
-        }, 0);
+        setTimeout(detectSlashCommand, 0);
     });
 
     messageInput.addEventListener('beforeinput', (e) => {
@@ -1036,8 +1033,15 @@ export function getFormattedMessageContent(messageInput) {
     const clone = messageInput.cloneNode(true);
     clone.querySelectorAll('.slash-command-chip').forEach(el => el.remove());
 
-    // 使用 clone 的 markup 获取内容，并将 <br> 转换为 \n
-    const rawMarkup = clone.innerHTML; // eslint-disable-line -- existing pattern; input is user-authored contenteditable, not external HTML
+    // SECURITY NOTE — the two innerHTML usages below are safe by design:
+    //  1. rawMarkup reads from a cloned contenteditable whose only content
+    //     producers are the browser editing engine and our own chip/image-tag
+    //     insertion — no external or user-supplied HTML is injected.
+    //  2. tempDiv assignment receives the message string after all HTML tags
+    //     have been regex-stripped, leaving only plain text with possible
+    //     HTML entities (e.g. &amp;). This is a standard entity-decode
+    //     pattern; the resulting textContent is the decoded plain string.
+    const rawMarkup = clone.innerHTML; // eslint-disable-line -- safe: see note above
     let message = rawMarkup
         .replace(/<div><br><\/div>/g, '\n')  // 处理换行后的空行
         .replace(/<div>/g, '\n')             // 处理换行后的新行开始
@@ -1045,10 +1049,8 @@ export function getFormattedMessageContent(messageInput) {
         .replace(/<br\s*\/?>/g, '\n')        // 处理单个换行
         .replace(/&nbsp;/g, ' ');            // 处理空格
 
-    // Decode HTML entities (e.g. &amp; → &) via DOM round-trip.
-    // Input is user-authored contenteditable text with tags already stripped above.
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = message; // eslint-disable-line -- entity decode; all tags stripped above
+    tempDiv.innerHTML = message; // eslint-disable-line -- safe: entity decode only, all tags stripped above
     message = tempDiv.textContent;
 
     // Strip zero-width spaces left over from chip insertion

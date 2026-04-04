@@ -2383,6 +2383,8 @@ const onDomReady = async () => {
             e.stopPropagation();
             chip.remove();
             activeSlashCommand = null;
+            document.dispatchEvent(new CustomEvent('cerebr:slashCommandRemoved'));
+            input.dispatchEvent(new Event('input'));
             input.focus();
         });
 
