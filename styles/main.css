@@ -22,6 +22,7 @@
 @import './components/chat-container.css';
 @import './components/toast.css';
 @import './components/slash-commands.css';
+@import './components/confirm-dialog.css';
 
 @import '../htmd/styles/math.css';
 @import '../htmd/styles/table.css';

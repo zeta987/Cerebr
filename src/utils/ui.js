@@ -170,3 +170,62 @@ export function showToast(message, { type = 'info', durationMs = 1600 } = {}) {
 
     setTimeout(hide, durationMs);
 }
+
+/**
+ * Show a confirm dialog and wait for user response.
+ * @param {string} message - The message to display
+ * @returns {Promise<boolean>} true if confirmed, false if cancelled
+ */
+let _confirmDialogOpen = false;
+export function showConfirmDialog(message) {
+    if (_confirmDialogOpen) return Promise.resolve(false);
+    _confirmDialogOpen = true;
+
+    const overlay = document.getElementById('confirm-dialog-overlay');
+    const msgEl = overlay.querySelector('.confirm-dialog-message');
+    const cancelBtn = overlay.querySelector('.confirm-dialog-cancel');
+    const confirmBtn = overlay.querySelector('.confirm-dialog-confirm');
+
+    msgEl.textContent = message;
+    overlay.style.display = 'flex';
+    confirmBtn.focus();
+
+    return new Promise((resolve) => {
+        function cleanup(result) {
+            cancelBtn.removeEventListener('click', onCancel);
+            confirmBtn.removeEventListener('click', onConfirm);
+            document.removeEventListener('keydown', onKeydown);
+            overlay.style.display = 'none';
+            _confirmDialogOpen = false;
+            resolve(result);
+        }
+
+        function onCancel() {
+            cleanup(false);
+        }
+
+        function onConfirm() {
+            cleanup(true);
+        }
+
+        function onKeydown(e) {
+            if (e.key === 'Escape') {
+                cleanup(false);
+                return;
+            }
+            // Focus trap: cycle between cancel and confirm buttons
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                if (document.activeElement === confirmBtn) {
+                    cancelBtn.focus();
+                } else {
+                    confirmBtn.focus();
+                }
+            }
+        }
+
+        cancelBtn.addEventListener('click', onCancel);
+        confirmBtn.addEventListener('click', onConfirm);
+        document.addEventListener('keydown', onKeydown);
+    });
+}

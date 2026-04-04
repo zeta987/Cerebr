@@ -9,7 +9,7 @@ import { chatManager } from './utils/chat-manager.js';
 import { appendMessage } from './handlers/message-handler.js';
 import { hideContextMenu } from './components/context-menu.js';
 import { initChatContainer } from './components/chat-container.js';
-import { showImagePreview, hideImagePreview, showToast } from './utils/ui.js';
+import { showImagePreview, hideImagePreview, showToast, showConfirmDialog } from './utils/ui.js';
 import { renderAPICards, createCardCallbacks, selectCard } from './components/api-card.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from './utils/storage-adapter.js';
 import { initMessageInput, getFormattedMessageContent, buildMessageContent, clearMessageInput, handleWindowMessage, moveCaretToEnd, setPlaceholder } from './components/message-input.js';
@@ -24,7 +24,7 @@ import { initWebpageMenu, getEnabledTabsContent } from './components/webpage-men
 import { normalizeChatCompletionsUrl } from './utils/api-url.js';
 import { ensureChatElementVisible, syncChatBottomExtraPadding } from './utils/scroll.js';
 import { createReadingProgressManager } from './utils/reading-progress.js';
-import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from './utils/i18n.js';
+import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t, LANGUAGE_PREFERENCE_KEY } from './utils/i18n.js';
 import { setWebpageSwitchesForChat } from './utils/webpage-switches.js';
 
 // 存储用户的问题历史
@@ -1751,6 +1751,84 @@ const onDomReady = async () => {
         });
     }
 
+    // DESIGN NOTE — API keys are exported in plaintext intentionally.
+    // The primary use case is personal backup/restore and cross-device migration.
+    // The export confirmation dialog already warns the user.  Masking keys would
+    // break the restore workflow (the user would have to re-enter every key).
+    const collectAllSettings = async () => {
+        const SYSTEM_PROMPT_KEY_PREFIX_LOCAL = 'apiConfigSystemPrompt_';
+        const getPromptKey = (id) => `${SYSTEM_PROMPT_KEY_PREFIX_LOCAL}${id}`;
+
+        // Clone configs and reattach full system prompts from IDB
+        const configsWithPrompts = await Promise.all(
+            apiConfigs.map(async (cfg) => {
+                const clone = structuredClone(cfg);
+                if (clone.id) {
+                    const res = await storageAdapter.get(getPromptKey(clone.id));
+                    const prompt = res?.[getPromptKey(clone.id)];
+                    if (prompt != null) {
+                        clone.advancedSettings = clone.advancedSettings || {};
+                        clone.advancedSettings.systemPrompt = prompt;
+                    }
+                }
+                return clone;
+            })
+        );
+
+        // Read preferences from sync storage
+        const syncRes = await syncStorageAdapter.get([
+            THEME_STORAGE_KEY,
+            LANGUAGE_PREFERENCE_KEY,
+            FONT_SCALE_KEY,
+            SITE_OVERRIDES_KEY,
+        ]);
+        const theme = syncRes?.[THEME_STORAGE_KEY];
+        const language = syncRes?.[LANGUAGE_PREFERENCE_KEY];
+        const fontScale = syncRes?.[FONT_SCALE_KEY];
+        const panelSiteOverrides = syncRes?.[SITE_OVERRIDES_KEY];
+
+        // Read slash commands from IDB
+        const slashRes = await storageAdapter.get('cerebr_slash_commands_v1');
+        const slashCommands = slashRes?.['cerebr_slash_commands_v1'];
+
+        return {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            source: 'Cerebr',
+            apiConfigs: configsWithPrompts,
+            selectedConfigIndex,
+            slashCommands: slashCommands || [],
+            preferences: {
+                theme: theme || 'system',
+                language: language || 'auto',
+                fontScale: fontScale || 1,
+                panelSiteOverrides: panelSiteOverrides || {},
+            },
+        };
+    };
+
+    document.getElementById('preferences-export')?.addEventListener('click', async () => {
+        try {
+            const settings = await collectAllSettings();
+            const json = JSON.stringify(settings, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const datePart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+            const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+            a.href = url;
+            a.download = `cerebr-settings-${datePart}_${timePart}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast(t('toast_export_success'), { type: 'warning', durationMs: 4000 });
+        } catch (err) {
+            console.error('Export failed:', err);
+            showToast('Export failed', { type: 'error' });
+        }
+    });
+
     const SYSTEM_PROMPT_SYNC_THRESHOLD_BYTES = 6000;
     const SYSTEM_PROMPT_KEY_PREFIX = 'apiConfigSystemPrompt_';
     const SYSTEM_PROMPT_LOCAL_ONLY_KEY_PREFIX = 'apiConfigSystemPromptLocalOnly_';
@@ -2432,6 +2510,123 @@ const onDomReady = async () => {
     // 等待 DOM 加载完成后再初始化
     await loadAPIConfigs();
     await loadSlashCommands();
+
+    async function refreshUIAfterImport(data) {
+        // Re-render API cards
+        renderAPICardsWithCallbacks();
+
+        // Re-render slash command cards (safe guard for when slash commands feature is merged)
+        if (typeof loadSlashCommands === 'function') await loadSlashCommands();
+
+        // Apply theme
+        if (data.preferences?.theme) {
+            applyThemePreference(normalizeThemePreference(data.preferences.theme));
+            const themeSelect = document.getElementById('preferences-theme');
+            if (themeSelect) themeSelect.value = data.preferences.theme;
+        }
+
+        // Apply font scale
+        if (data.preferences?.fontScale) {
+            applyFontScale(data.preferences.fontScale);
+            const fontScaleSelect = document.getElementById('preferences-font-scale');
+            if (fontScaleSelect) fontScaleSelect.value = String(data.preferences.fontScale);
+        }
+
+        // Reload language
+        if (data.preferences?.language) {
+            const { reloadI18n, applyI18n, setLanguagePreference } = await import('./utils/i18n.js');
+            await setLanguagePreference(data.preferences.language);
+            await reloadI18n();
+            applyI18n();
+            const langSelect = document.getElementById('preferences-language');
+            if (langSelect) langSelect.value = data.preferences.language;
+        }
+    }
+
+    async function applyImportedSettings(data) {
+        // Validate version
+        if (data.version !== 1) {
+            showToast(t('toast_import_error_version'), { type: 'error' });
+            return;
+        }
+
+        // Import API configs
+        if (Array.isArray(data.apiConfigs)) {
+            // Clear existing system prompts from IDB
+            for (const config of apiConfigs) {
+                if (config.id) {
+                    await storageAdapter.remove(getSystemPromptKey(config.id));
+                }
+            }
+
+            // Write new configs
+            const newConfigs = data.apiConfigs.map(config => normalizeApiConfig(config));
+
+            // Separate system prompts to IDB, stripped configs to sync
+            for (const config of newConfigs) {
+                const systemPrompt = config.advancedSettings?.systemPrompt || '';
+                if (systemPrompt) {
+                    await persistSystemPromptLocalNow({ configId: config.id, systemPrompt });
+                }
+            }
+
+            const strippedConfigs = newConfigs.map(c => stripApiConfigForSync(c));
+            apiConfigs.splice(0, apiConfigs.length, ...newConfigs);
+            selectedConfigIndex = newConfigs.length > 0
+                ? Math.min(data.selectedConfigIndex ?? 0, newConfigs.length - 1)
+                : 0;
+
+            await syncStorageAdapter.set({
+                apiConfigs: strippedConfigs,
+                selectedConfigIndex
+            });
+        }
+
+        // Import preferences (skip if missing)
+        if (data.preferences) {
+            const prefs = data.preferences;
+            const syncData = {};
+            if (prefs.theme !== undefined) syncData[THEME_STORAGE_KEY] = prefs.theme;
+            if (prefs.language !== undefined) syncData[LANGUAGE_PREFERENCE_KEY] = prefs.language;
+            if (prefs.fontScale !== undefined) syncData[FONT_SCALE_KEY] = prefs.fontScale;
+            if (prefs.panelSiteOverrides !== undefined) syncData[SITE_OVERRIDES_KEY] = prefs.panelSiteOverrides;
+            if (Object.keys(syncData).length > 0) {
+                await syncStorageAdapter.set(syncData);
+            }
+        }
+
+        // Import slash commands (skip if missing)
+        if (Array.isArray(data.slashCommands)) {
+            await storageAdapter.set({ cerebr_slash_commands_v1: data.slashCommands });
+        }
+
+        // Post-import UI refresh
+        await refreshUIAfterImport(data);
+
+        showToast(t('toast_import_success'), { type: 'info' });
+    }
+
+    document.getElementById('preferences-import')?.addEventListener('click', async () => {
+        const confirmed = await showConfirmDialog(t('import_confirm_message'));
+        if (!confirmed) return;
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.addEventListener('change', async () => {
+            const file = input.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                await applyImportedSettings(data);
+            } catch (err) {
+                console.error('Import failed:', err);
+                showToast(t('toast_import_error_format'), { type: 'error' });
+            }
+        });
+        input.click();
+    });
 
     // 显示/隐藏 API 设置
     apiSettingsToggle?.addEventListener('click', () => {

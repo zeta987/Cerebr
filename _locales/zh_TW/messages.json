@@ -67,6 +67,8 @@
   "language_zh_cn": { "message": "简体中文" },
   "language_zh_tw": { "message": "繁體中文" },
 
+  "preferences_export": { "message": "匯出設定" },
+  "preferences_import": { "message": "匯入設定" },
   "preferences_feedback": { "message": "意見回饋" },
   "preferences_feedback_action": { "message": "前往 GitHub" },
 
@@ -90,6 +92,10 @@
   "toast_no_math_found": { "message": "沒有找到可複製的公式" },
   "toast_handle_image_failed": { "message": "處理圖片失敗" },
   "toast_empty_response": { "message": "模型未回傳任何內容，可嘗試重試" },
+  "toast_export_success": { "message": "設定已匯出。檔案包含敏感資料（API 金鑰），請妥善保管。" },
+  "toast_import_success": { "message": "設定匯入成功" },
+  "toast_import_error_format": { "message": "檔案格式無效" },
+  "toast_import_error_version": { "message": "不支援的設定版本" },
 
   "label_thinking": { "message": "正在思考" },
   "label_copy": { "message": "複製" },
@@ -127,6 +133,10 @@
 
   "label_image": { "message": "圖片" },
   "label_delete_image": { "message": "刪除圖片" },
+
+  "dialog_cancel": { "message": "取消" },
+  "dialog_confirm": { "message": "確認" },
+  "import_confirm_message": { "message": "這將覆蓋所有目前的設定，包括 API 金鑰、系統提示詞和偏好設定。是否繼續？" },
 
   "error_api_config_incomplete": { "message": "API 設定不完整" },
   "error_response_unreadable": { "message": "回應內容不可讀" },

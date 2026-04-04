@@ -1,0 +1,62 @@
+/* Confirm dialog overlay & modal */
+.confirm-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.confirm-dialog {
+    background: var(--cerebr-bg-color);
+    color: var(--cerebr-text-color);
+    border-radius: 12px;
+    padding: 20px 24px;
+    max-width: 320px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+}
+
+.confirm-dialog-message {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.confirm-dialog-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.confirm-dialog-cancel,
+.confirm-dialog-confirm {
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.confirm-dialog-cancel {
+    background: transparent;
+    border: 1px solid var(--cerebr-card-border-color);
+    color: var(--cerebr-text-color);
+}
+
+.confirm-dialog-cancel:hover {
+    background: var(--cerebr-hover-bg-color);
+}
+
+.confirm-dialog-confirm {
+    background: var(--cerebr-accent-color, #4A90D9);
+    color: white;
+    border: none;
+}
+
+.confirm-dialog-confirm:hover {
+    opacity: 0.85;
+}
