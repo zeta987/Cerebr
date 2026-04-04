@@ -21,6 +21,7 @@
 @import './components/webpage-menu.css';
 @import './components/chat-container.css';
 @import './components/toast.css';
+@import './components/slash-commands.css';
 
 @import '../htmd/styles/math.css';
 @import '../htmd/styles/table.css';

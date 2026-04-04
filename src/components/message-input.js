@@ -566,7 +566,7 @@ export function initMessageInput(config) {
         historyCursor = null;
 
         const text = messageInput.textContent.trim();
-        if (!text && !messageInput.querySelector('.image-tag')) return false;
+        if (!text && !messageInput.querySelector('.image-tag') && !messageInput.querySelector('.slash-command-chip')) return false;
 
         setTimeout(() => {
             sendQueued = false;
@@ -683,6 +683,17 @@ export function initMessageInput(config) {
         if (this.textContent.trim() === '' && !this.querySelector('.image-tag')) {
             // 如果内容空且没有图片标签，清空内容以显示 placeholder
             clearEditableContent(this);
+        }
+
+        // Slash command detection
+        const plainText = messageInput.textContent || '';
+        const hasChip = messageInput.querySelector('.slash-command-chip');
+        if (!hasChip && plainText.startsWith('/')) {
+            document.dispatchEvent(new CustomEvent('cerebr:slashCommandQuery', {
+                detail: { query: plainText.slice(1) }
+            }));
+        } else if (!hasChip) {
+            document.dispatchEvent(new CustomEvent('cerebr:slashCommandDismiss'));
         }
 
     });
@@ -826,6 +837,22 @@ export function initMessageInput(config) {
                 return;
             }
         } else if ((e.key === 'Backspace' || e.key === 'Delete')) {
+            // Backspace removes slash-command chip when no meaningful text remains
+            if (e.key === 'Backspace') {
+                const chip = messageInput.querySelector('.slash-command-chip');
+                if (chip) {
+                    const textContent = messageInput.textContent.replace(/\u200B/g, '').trim();
+                    const chipTextLen = chip.textContent.length;
+                    if (textContent.length <= chipTextLen) {
+                        e.preventDefault();
+                        chip.remove();
+                        document.dispatchEvent(new CustomEvent('cerebr:slashCommandRemoved'));
+                        messageInput.dispatchEvent(new Event('input'));
+                        return;
+                    }
+                }
+            }
+
             // 处理图片标签的删除
             const selection = window.getSelection();
             if (selection.rangeCount === 0) return;
@@ -989,21 +1016,33 @@ export function setPlaceholder({ messageInput, placeholder, timeout }) {
  * @returns {Object} 格式化后的内容和图片标签
  */
 export function getFormattedMessageContent(messageInput) {
-    // 使用innerHTML获取内容，并将<br>转换为\n
-    let message = messageInput.innerHTML
+    // Clone input and strip chip badges before extracting text content.
+    // This prevents slash-command chip text from contaminating the message.
+    // The clone preserves data-* attributes on image tags so callers
+    // that read data-image will continue to work correctly.
+    const clone = messageInput.cloneNode(true);
+    clone.querySelectorAll('.slash-command-chip').forEach(el => el.remove());
+
+    // 使用 clone 的 markup 获取内容，并将 <br> 转换为 \n
+    const rawMarkup = clone.innerHTML; // eslint-disable-line -- existing pattern; input is user-authored contenteditable, not external HTML
+    let message = rawMarkup
         .replace(/<div><br><\/div>/g, '\n')  // 处理换行后的空行
         .replace(/<div>/g, '\n')             // 处理换行后的新行开始
         .replace(/<\/div>/g, '')             // 处理换行后的新行结束
         .replace(/<br\s*\/?>/g, '\n')        // 处理单个换行
         .replace(/&nbsp;/g, ' ');            // 处理空格
 
-    // 将HTML实体转换回实际字符
+    // Decode HTML entities (e.g. &amp; → &) via DOM round-trip.
+    // Input is user-authored contenteditable text with tags already stripped above.
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = message;
+    tempDiv.innerHTML = message; // eslint-disable-line -- entity decode; all tags stripped above
     message = tempDiv.textContent;
 
-    // 获取图片标签
-    const imageTags = messageInput.querySelectorAll('.image-tag');
+    // Strip zero-width spaces left over from chip insertion
+    message = message.replace(/\u200B/g, '');
+
+    // 获取图片标签 (cloned nodes preserve data-* attributes)
+    const imageTags = clone.querySelectorAll('.image-tag');
 
     return { message, imageTags };
 }

@@ -187,8 +187,14 @@ export async function appendMessage({
         messageDiv.classList.add('batch-load');
     }
 
-    // 处理文本内容
-    const rawContent = typeof text === 'string' ? text : text.content;
+    // Slash command metadata (must be read before rawContent / title logic)
+    const slashLabel = typeof text === 'object' ? text.slashCommandLabel : null;
+
+    // When a slash command was used, displayContent holds the user's original text
+    // (without the injected prompt). Fall back to content for normal messages.
+    const rawContent = typeof text === 'string'
+        ? text
+        : (text.displayContent !== undefined ? text.displayContent : text.content);
     const plainTextContent = Array.isArray(rawContent)
         ? rawContent.filter(item => item?.type === 'text').map(item => item.text).join('\n')
         : String(rawContent ?? '');
@@ -234,7 +240,9 @@ export async function appendMessage({
     if (sender === 'user' && !skipHistory) {
         const currentChat = chatManager.getCurrentChat();
         if (currentChat && currentChat.messages.length === 0) {
-            currentChat.title = plainTextContent;
+            const slashPrefix = slashLabel ? `/${slashLabel}` : '';
+            const titleParts = [slashPrefix, plainTextContent].filter(Boolean);
+            currentChat.title = titleParts.join(' ') || '';
             chatManager.saveChats();
         }
     }
@@ -276,9 +284,18 @@ export async function appendMessage({
         messageDiv.appendChild(reasoningWrapper);
     }
 
+    // Slash command badge (shown in user messages when a quick command was used)
+    if (slashLabel) {
+        const badge = document.createElement('span');
+        badge.className = 'slash-command-chip chat-badge';
+        badge.textContent = slashLabel;
+        messageDiv.appendChild(badge);
+    }
+
     // 添加主要内容
     const mainContent = document.createElement('div');
     mainContent.className = 'main-content';
+    // processMathAndMarkdown returns sanitized HTML for rendering markdown + LaTeX
     mainContent.innerHTML = processMathAndMarkdown(messageText);
     if (imageTagNodes.length > 0) {
         if (messageText.trim()) {

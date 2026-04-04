@@ -23,6 +23,7 @@
   "settings_chat_list": { "message": "Chats" },
   "settings_api_settings": { "message": "API settings" },
   "settings_preferences": { "message": "Preferences" },
+  "settings_slash_commands": { "message": "Quick Commands" },
 
   "message_input_placeholder": { "message": "Type a message..." },
   "message_input_placeholder_thinking": { "message": "Thinking..." },
@@ -43,6 +44,7 @@
   "api_system_prompt_label": { "message": "System prompt" },
 
   "title_preferences": { "message": "Preferences" },
+  "title_slash_commands": { "message": "Quick Commands" },
   "preferences_version": { "message": "Version" },
   "preferences_open_source": { "message": "Source code" },
   "preferences_group": { "message": "Community" },
@@ -113,6 +115,15 @@
   "webpage_title_label": { "message": "Title" },
   "webpage_url_label": { "message": "URL" },
   "webpage_content_label": { "message": "Content" },
+
+  "slash_cmd_name_label": { "message": "Command Name" },
+  "slash_cmd_name_placeholder": { "message": "translate" },
+  "slash_cmd_label_label": { "message": "Description" },
+  "slash_cmd_label_placeholder": { "message": "Translate to English" },
+  "slash_cmd_prompt_label": { "message": "Prompt" },
+  "slash_cmd_prompt_placeholder": { "message": "Please translate the following to English:" },
+  "slash_cmd_empty": { "message": "No quick commands yet" },
+  "slash_cmd_add": { "message": "Add Command" },
 
   "label_image": { "message": "Image" },
   "label_delete_image": { "message": "Delete image" },
