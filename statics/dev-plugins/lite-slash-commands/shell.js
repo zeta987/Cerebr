@@ -1117,8 +1117,6 @@ export default definePlugin({
         await loadPluginLocale(getCerebrLocale?.() || 'en', import.meta.url, revision);
 
         // 2. Subscribe to Cerebr locale changes to keep UI and seed commands in sync.
-        //    NOTE: applyLocaleToDom is declared in Task 4. Until Task 4 lands,
-        //    leave the call commented or use a defensive typeof guard.
         const unsubscribeLocale = onLocaleChanged(async ({ locale } = {}) => {
             try {
                 await loadPluginLocale(locale || 'en', import.meta.url, revision);
@@ -1146,8 +1144,8 @@ export default definePlugin({
         // 3. Build picker & modal (both need DOM attachment)
         runtimeState.pickerRoot = createPickerRoot(documentRef, inputContainer);
         runtimeState.chrome = createSettingsModal(documentRef);
-        applyLocaleToDom();
         runtimeState.settingsButton = createSettingsButton(documentRef);
+        applyLocaleToDom();
 
         // 4. Mount settings button – prefer slot when available, otherwise append
         //    directly to #input-container as fallback. Slot renderer returns the
