@@ -640,18 +640,24 @@ async function onDomReady() {
     });
     draftController.attach();
 
-    const flushSessionState = () => {
-        void draftController.saveDraftNow().catch(() => {});
-        void readingProgressManager.saveNow().catch(() => {});
-        void chatManager.flushNow().catch(() => {});
+    const flushSessionState = async () => {
+        await Promise.allSettled([
+            draftController.saveDraftNow(),
+            readingProgressManager.saveNow(),
+            chatManager.flushNow(),
+        ]);
+    };
+
+    const requestSessionStateFlush = () => {
+        void flushSessionState().catch(() => {});
     };
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
-            flushSessionState();
+            requestSessionStateFlush();
         }
     });
-    window.addEventListener('pagehide', flushSessionState);
+    window.addEventListener('pagehide', requestSessionStateFlush);
 
     if ((!currentChat || currentChat.messages.length === 0 || isDefaultChatSeedOnly(currentChat)) && isExtensionEnvironment) {
         const currentTab = await browserAdapter.getCurrentTab();
@@ -670,18 +676,39 @@ async function onDomReady() {
     });
     await shellPluginRuntime.start();
 
-    const notifyParentIframeReady = () => {
+    const notifyParentIframeEvent = (type) => {
         if (!isExtensionEnvironment) return;
         if (window.top === window) return;
         try {
-            window.parent?.postMessage?.({ type: 'CEREBR_IFRAME_READY' }, '*');
+            window.parent?.postMessage?.({ type }, '*');
         } catch {
             // ignore
         }
     };
 
+    const notifyParentIframeReady = () => {
+        notifyParentIframeEvent('CEREBR_IFRAME_READY');
+    };
+
+    const handleHostLifecycleMessage = (event) => {
+        const type = event?.data?.type;
+        if (type !== 'CEREBR_SIDEBAR_PRE_HIDE') {
+            return false;
+        }
+
+        void flushSessionState()
+            .catch(() => {})
+            .finally(() => {
+                notifyParentIframeEvent('CEREBR_SIDEBAR_PRE_HIDE_ACK');
+            });
+        return true;
+    };
+
     // 监听来自 content script 的消息
     window.addEventListener('message', (event) => {
+        if (handleHostLifecycleMessage(event)) {
+            return;
+        }
         // 使用消息输入组件的窗口消息处理函数
         handleWindowMessage(event, {
             messageInput,

@@ -147,46 +147,54 @@ async function reinjectContentScript(tabId) {
   }
 }
 
+async function dispatchSidebarCommandToTab(tabId, commandType) {
+  if (!tabId) {
+    return { success: false, reason: 'MISSING_TAB_ID' };
+  }
+
+  try {
+    let isConnected = await isTabConnected(tabId);
+    if (!isConnected) {
+      isConnected = await reinjectContentScript(tabId);
+    }
+
+    if (!isConnected) {
+      console.warn(`标签页 ${tabId} 无法接收 ${commandType} 命令`);
+      return { success: false, reason: 'CONTENT_SCRIPT_UNAVAILABLE' };
+    }
+
+    const response = await chrome.tabs.sendMessage(tabId, { type: commandType });
+    return { success: true, response };
+  } catch (error) {
+    console.error(`派发 ${commandType} 命令失败:`, error);
+    return { success: false, reason: 'SEND_MESSAGE_FAILED', error };
+  }
+}
+
+async function dispatchSidebarCommandToActiveTab(commandType) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    console.log('没有找到活动标签页');
+    return { success: false, reason: 'NO_ACTIVE_TAB' };
+  }
+
+  return dispatchSidebarCommandToTab(tab.id, commandType);
+}
+
 // 处理标签页连接和消息发送的通用函数
 async function handleTabCommand(commandType) {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) {
-      console.log('没有找到活动标签页');
-      return;
-    }
-
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
-      return;
-    }
-
-    if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
-    }
-  } catch (error) {
-    console.error(`处理${commandType}命令失败:`, error);
+  const result = await dispatchSidebarCommandToActiveTab(commandType);
+  if (!result?.success && result?.reason !== 'CONTENT_SCRIPT_UNAVAILABLE') {
+    console.warn(`处理 ${commandType} 命令未成功完成:`, result?.reason || 'UNKNOWN');
   }
 }
 
 // 监听扩展图标点击
 chrome.action.onClicked.addListener(async (tab) => {
   console.log('扩展图标被点击');
-  try {
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-      return;
-    }
-
-    if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-    }
-  } catch (error) {
-    console.error('处理切换失败:', error);
+  const result = await dispatchSidebarCommandToTab(tab?.id, 'TOGGLE_SIDEBAR_onClicked');
+  if (!result?.success && result?.reason !== 'CONTENT_SCRIPT_UNAVAILABLE') {
+    console.warn('处理切换命令未成功完成:', result?.reason || 'UNKNOWN');
   }
 });
 
