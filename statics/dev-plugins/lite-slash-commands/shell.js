@@ -4,7 +4,6 @@ import {
     t,
     getLocaleLabel,
     getSeedCommandMeta,
-    getActiveLocale as getPluginActiveLocale,
     onLocaleChanged,
 } from './helpers/plugin-i18n.js';
 import { expandLanguagePlaceholders } from './helpers/language-placeholders.js';
@@ -1086,7 +1085,12 @@ export default definePlugin({
         //    NOTE: applyLocaleToDom is declared in Task 4. Until Task 4 lands,
         //    leave the call commented or use a defensive typeof guard.
         const unsubscribeLocale = onLocaleChanged(async ({ locale } = {}) => {
-            await loadPluginLocale(locale || 'en', import.meta.url, revision);
+            try {
+                await loadPluginLocale(locale || 'en', import.meta.url, revision);
+            } catch (err) {
+                console.warn('[Lite Slash Commands] locale reload failed, keeping previous locale', err);
+                return;
+            }
             const changed = refreshSeedCommandsForLocale(runtimeState.commandEnvelope);
             if (changed) {
                 await writeStoredEnvelope(runtimeState.commandEnvelope);
