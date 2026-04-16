@@ -20,6 +20,9 @@ const SIDEBAR_DEFAULT_OFFSET_PX = 20;
 const SIDEBAR_WIDTH_MIN_PX = 300;
 const SIDEBAR_WIDTH_MAX_PX = 800;
 const SIDEBAR_HEIGHT_MIN_PX = 240;
+const SIDEBAR_PRE_HIDE_MESSAGE_TYPE = 'CEREBR_SIDEBAR_PRE_HIDE';
+const SIDEBAR_PRE_HIDE_ACK_MESSAGE_TYPE = 'CEREBR_SIDEBAR_PRE_HIDE_ACK';
+const SIDEBAR_PRE_HIDE_ACK_TIMEOUT_MS = 250;
 let sidebarStylesheetTextPromise = null;
 
 function getSidebarStylesheetText() {
@@ -96,6 +99,8 @@ class CerebrSidebar {
     this.inputFocusRetryTimeoutIds = [];
     this.inputFocusLoadListener = null;
     this.hideTimeout = null;
+    this.iframeLifecycleRequestId = 0;
+    this.iframeTeardownRequested = false;
     this.dragging = false;
     this.iframePointerEventsBeforeDrag = null;
     this.saveStateDebounced = this.debounce(() => void this.saveState(), 250);
@@ -572,6 +577,79 @@ class CerebrSidebar {
     this.pendingIframeCommands = [];
   }
 
+  invalidatePendingIframeTeardown() {
+    this.iframeLifecycleRequestId += 1;
+  }
+
+  destroyIframe() {
+    const iframe = this.iframe;
+    this.iframe = null;
+    this.iframeTeardownRequested = false;
+    this.resetIframeReadyState({ clearPendingCommands: true });
+
+    if (!iframe) return false;
+
+    try {
+      iframe.removeAttribute('src');
+    } catch {
+      // ignore
+    }
+
+    iframe.remove();
+    return true;
+  }
+
+  async notifyIframePreHide() {
+    const targetWindow = this.iframe?.contentWindow;
+    if (!targetWindow) return false;
+
+    return new Promise((resolve) => {
+      let settled = false;
+
+      const finish = (acknowledged = false) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        window.removeEventListener('message', onMessage);
+        resolve(acknowledged);
+      };
+
+      const onMessage = (event) => {
+        if (event.source !== targetWindow) return;
+        const data = event.data;
+        if (!data || typeof data !== 'object') return;
+        if (data.type === SIDEBAR_PRE_HIDE_ACK_MESSAGE_TYPE) {
+          finish(true);
+        }
+      };
+
+      const timeoutId = window.setTimeout(() => finish(false), SIDEBAR_PRE_HIDE_ACK_TIMEOUT_MS);
+      window.addEventListener('message', onMessage);
+
+      if (!this.postMessageToIframe({ type: SIDEBAR_PRE_HIDE_MESSAGE_TYPE })) {
+        finish(false);
+      }
+    });
+  }
+
+  async requestIframeTeardown() {
+    if (!this.iframe) {
+      this.iframeTeardownRequested = false;
+      this.resetIframeReadyState({ clearPendingCommands: true });
+      return false;
+    }
+
+    const requestId = ++this.iframeLifecycleRequestId;
+    this.iframeTeardownRequested = true;
+    await this.notifyIframePreHide();
+
+    if (requestId !== this.iframeLifecycleRequestId || this.isVisible) {
+      return false;
+    }
+
+    return this.destroyIframe();
+  }
+
   postMessageToIframe(message) {
     if (!message || typeof message !== 'object') return false;
     const targetWindow = this.iframe?.contentWindow;
@@ -612,6 +690,11 @@ class CerebrSidebar {
   }
 
   ensureIframeLoaded() {
+    if (this.iframeTeardownRequested) {
+      this.invalidatePendingIframeTeardown();
+      this.destroyIframe();
+    }
+
     const iframe = this.createIframe();
     if (!iframe) return false;
 
@@ -1050,6 +1133,7 @@ class CerebrSidebar {
         this.clearInputFocusRetries();
         this.clearPendingIframeCommands();
         this.sidebar.classList.remove('visible');
+        void this.requestIframeTeardown();
 
         if (this.hideTimeout) {
           clearTimeout(this.hideTimeout);
