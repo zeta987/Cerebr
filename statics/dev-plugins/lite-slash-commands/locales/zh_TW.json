@@ -46,7 +46,10 @@
     "error_nothing_to_save": "目前沒有可儲存的命令。",
     "picker_empty": "目前沒有符合的斜線命令，點右側 / 按鈕管理命令。",
     "blank_command_name": "新命令 $1",
-    "blank_command_prompt": "請在這裡輸入提示詞。"
+    "blank_command_prompt": "請在這裡輸入提示詞。",
+    "command_meta": "ID: $1  ·  建立於 $2  ·  更新於 $3",
+    "status_exported_copied": "已匯出目前 JSON，並複製到剪貼簿。",
+    "status_exported_textarea": "已匯出目前 JSON 到文字框。"
   },
   "seed_commands": {
     "explain":      { "name": "解釋",       "label": "解釋",       "description": "" },

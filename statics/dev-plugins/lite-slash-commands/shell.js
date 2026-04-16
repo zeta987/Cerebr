@@ -154,13 +154,13 @@ function serializeEnvelope(envelope) {
 function createBlankCommand(existingCommands = []) {
     const now = Date.now();
     const nextIndex = existingCommands.length + 1;
-    const name = `新命令 ${nextIndex}`;
+    const name = t('ui.blank_command_name', [nextIndex]);
 
     return decorateCommand({
         id: createCommandId(),
         name,
         label: name,
-        prompt: '請在這裡輸入提示詞。',
+        prompt: t('ui.blank_command_prompt'),
         description: '',
         aliases: [],
         createdAt: now,
@@ -912,59 +912,59 @@ function createSettingsModal(documentRef) {
         <section class="cerebr-lite-slash-modal__panel" role="dialog" aria-modal="true" aria-label="Lite slash command editor">
             <header class="cerebr-lite-slash-modal__header">
                 <div>
-                    <div class="cerebr-lite-slash-modal__title">Lite Slash Commands</div>
-                    <div class="cerebr-lite-slash-modal__subtitle">備份預設值會首次播種到外掛私有儲存，之後可自由自訂、匯入與重設。</div>
+                    <div class="cerebr-lite-slash-modal__title" data-i18n="ui.settings_title">Lite Slash Commands</div>
+                    <div class="cerebr-lite-slash-modal__subtitle" data-i18n="ui.settings_subtitle"></div>
                 </div>
-                <button type="button" class="cerebr-lite-slash-modal__close" data-modal-close="true" aria-label="Close slash command editor">✕</button>
+                <button type="button" class="cerebr-lite-slash-modal__close" data-modal-close="true" data-i18n-attr="aria-label:ui.close" aria-label="Close slash command editor">✕</button>
             </header>
             <div class="cerebr-lite-slash-modal__body">
                 <aside class="cerebr-lite-slash-modal__sidebar">
                     <div class="cerebr-lite-slash-modal__toolbar">
-                        <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--primary" data-action="create">新增命令</button>
-                        <button type="button" class="cerebr-lite-slash-modal__button" data-action="reset">重設預設</button>
+                        <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--primary" data-action="create" data-i18n="ui.create_command"></button>
+                        <button type="button" class="cerebr-lite-slash-modal__button" data-action="reset" data-i18n="ui.reset_defaults"></button>
                     </div>
                     <div class="cerebr-lite-slash-modal__command-list" data-command-list></div>
-                    <div class="cerebr-lite-slash-modal__empty" data-empty-state hidden>目前沒有任何斜線命令，按下「新增命令」就能建立自己的命令。</div>
+                    <div class="cerebr-lite-slash-modal__empty" data-empty-state hidden data-i18n="ui.list_empty"></div>
                 </aside>
                 <main class="cerebr-lite-slash-modal__editor">
                     <div class="cerebr-lite-slash-modal__status" data-status></div>
                     <div class="cerebr-lite-slash-modal__field-grid">
                         <div class="cerebr-lite-slash-modal__field-group">
-                            <label for="cerebr-lite-slash-name">命令名稱</label>
-                            <input id="cerebr-lite-slash-name" type="text" data-field="name" placeholder="例如：翻譯">
+                            <label for="cerebr-lite-slash-name" data-i18n="ui.field_name_label"></label>
+                            <input id="cerebr-lite-slash-name" type="text" data-field="name" data-i18n-attr="placeholder:ui.field_name_placeholder">
                         </div>
                         <div class="cerebr-lite-slash-modal__field-group">
-                            <label for="cerebr-lite-slash-label">顯示標題</label>
-                            <input id="cerebr-lite-slash-label" type="text" data-field="label" placeholder="例如：翻譯成台灣正體中文">
+                            <label for="cerebr-lite-slash-label" data-i18n="ui.field_label_label"></label>
+                            <input id="cerebr-lite-slash-label" type="text" data-field="label" data-i18n-attr="placeholder:ui.field_label_placeholder">
                         </div>
                         <div class="cerebr-lite-slash-modal__field-group">
-                            <label for="cerebr-lite-slash-aliases">別名</label>
-                            <textarea id="cerebr-lite-slash-aliases" data-field="aliases" rows="2" placeholder="用逗號或換行分隔"></textarea>
-                            <div class="cerebr-lite-slash-modal__field-note">別名只用於搜尋與輸入匹配，不會另外顯示成主要命令名。</div>
+                            <label for="cerebr-lite-slash-aliases" data-i18n="ui.field_aliases_label"></label>
+                            <textarea id="cerebr-lite-slash-aliases" data-field="aliases" rows="2" data-i18n-attr="placeholder:ui.field_aliases_placeholder"></textarea>
+                            <div class="cerebr-lite-slash-modal__field-note" data-i18n="ui.field_aliases_note"></div>
                         </div>
                         <div class="cerebr-lite-slash-modal__field-group">
-                            <label for="cerebr-lite-slash-description">描述</label>
-                            <textarea id="cerebr-lite-slash-description" data-field="description" rows="2" placeholder="簡短說明這個命令會做什麼"></textarea>
+                            <label for="cerebr-lite-slash-description" data-i18n="ui.field_description_label"></label>
+                            <textarea id="cerebr-lite-slash-description" data-field="description" rows="2" data-i18n-attr="placeholder:ui.field_description_placeholder"></textarea>
                         </div>
                         <div class="cerebr-lite-slash-modal__field-group">
-                            <label for="cerebr-lite-slash-prompt">提示詞內容</label>
-                            <textarea id="cerebr-lite-slash-prompt" data-field="prompt" rows="9" placeholder="真正展開到草稿區的提示詞"></textarea>
+                            <label for="cerebr-lite-slash-prompt" data-i18n="ui.field_prompt_label"></label>
+                            <textarea id="cerebr-lite-slash-prompt" data-field="prompt" rows="9" data-i18n-attr="placeholder:ui.field_prompt_placeholder"></textarea>
                         </div>
                         <div class="cerebr-lite-slash-modal__meta" data-meta></div>
                         <div class="cerebr-lite-slash-modal__actions">
-                            <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--primary" data-action="save">儲存變更</button>
-                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="move-up">上移</button>
-                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="move-down">下移</button>
-                            <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--danger" data-action="delete">刪除命令</button>
-                            <button type="button" class="cerebr-lite-slash-modal__button" data-modal-close="true">關閉</button>
+                            <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--primary" data-action="save" data-i18n="ui.save_changes"></button>
+                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="move-up" data-i18n="ui.move_up"></button>
+                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="move-down" data-i18n="ui.move_down"></button>
+                            <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--danger" data-action="delete" data-i18n="ui.delete_command"></button>
+                            <button type="button" class="cerebr-lite-slash-modal__button" data-modal-close="true" data-i18n="ui.close"></button>
                         </div>
                     </div>
                     <section class="cerebr-lite-slash-modal__section">
-                        <div class="cerebr-lite-slash-modal__section-title">JSON 匯入與匯出</div>
-                        <div class="cerebr-lite-slash-modal__field-note">匯出格式是外掛私有 envelope；匯入時也接受單純的命令陣列。</div>
+                        <div class="cerebr-lite-slash-modal__section-title" data-i18n="ui.import_json"></div>
+                        <div class="cerebr-lite-slash-modal__field-note" data-i18n="ui.import_note"></div>
                         <div class="cerebr-lite-slash-modal__transfer-actions">
-                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="export">匯出目前 JSON</button>
-                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="import">從文字框匯入 JSON</button>
+                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="export" data-i18n="ui.export_json"></button>
+                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="import" data-i18n="ui.import_json"></button>
                         </div>
                         <textarea class="cerebr-lite-slash-modal__transfer" data-transfer rows="8" placeholder="按下匯出後會把目前設定寫到這裡，也可以把 JSON 貼進來再按匯入。"></textarea>
                     </section>
@@ -1006,6 +1006,41 @@ function formatTimestamp(timestamp) {
 function buildCommandPreview(command) {
     const summary = normalizeString(command.description) || normalizeString(command.prompt);
     return summary.length > 96 ? `${summary.slice(0, 96)}…` : summary;
+}
+
+// Re-applies current locale strings to static modal chrome.
+// Called once after modal creation and again on every locale change.
+function applyLocaleToDom() {
+    const modal = runtimeState.chrome?.modal;
+    if (!modal) return;
+
+    modal.querySelectorAll('[data-i18n]').forEach((el) => {
+        const key = el.getAttribute('data-i18n');
+        if (!key) return;
+        el.textContent = t(key);
+    });
+
+    modal.querySelectorAll('[data-i18n-attr]').forEach((el) => {
+        const bindings = String(el.getAttribute('data-i18n-attr') || '')
+            .split(';')
+            .map((pair) => pair.trim())
+            .filter(Boolean)
+            .map((pair) => {
+                const idx = pair.indexOf(':');
+                if (idx === -1) return null;
+                return { attr: pair.slice(0, idx).trim(), key: pair.slice(idx + 1).trim() };
+            })
+            .filter(Boolean);
+        bindings.forEach(({ attr, key }) => {
+            const value = t(key);
+            if (value) el.setAttribute(attr, value);
+        });
+    });
+
+    if (runtimeState.settingsButton) {
+        runtimeState.settingsButton.setAttribute('aria-label', t('ui.button_aria_label'));
+        runtimeState.settingsButton.title = t('ui.button_aria_label');
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1095,9 +1130,7 @@ export default definePlugin({
             if (changed) {
                 await writeStoredEnvelope(runtimeState.commandEnvelope);
             }
-            if (typeof applyLocaleToDom === 'function') {
-                applyLocaleToDom();
-            }
+            applyLocaleToDom();
             renderModal();
             refreshSlashStateFromEditor();
         });
@@ -1113,6 +1146,7 @@ export default definePlugin({
         // 3. Build picker & modal (both need DOM attachment)
         runtimeState.pickerRoot = createPickerRoot(documentRef, inputContainer);
         runtimeState.chrome = createSettingsModal(documentRef);
+        applyLocaleToDom();
         runtimeState.settingsButton = createSettingsButton(documentRef);
 
         // 4. Mount settings button – prefer slot when available, otherwise append
@@ -1294,7 +1328,7 @@ function renderEditorFields() {
             input.value = '';
             input.disabled = true;
         });
-        chrome.meta.textContent = '目前沒有可編輯的斜線命令。';
+        chrome.meta.textContent = t('ui.list_empty');
         return;
     }
 
@@ -1307,7 +1341,7 @@ function renderEditorFields() {
     chrome.aliases.value = selected.aliases.join(', ');
     chrome.description.value = selected.description;
     chrome.prompt.value = selected.prompt;
-    chrome.meta.textContent = `ID: ${selected.id}  ·  建立於 ${formatTimestamp(selected.createdAt)}  ·  更新於 ${formatTimestamp(selected.updatedAt)}`;
+    chrome.meta.textContent = t('ui.command_meta', [selected.id, formatTimestamp(selected.createdAt), formatTimestamp(selected.updatedAt)]);
 }
 
 function renderModal() {
@@ -1322,7 +1356,7 @@ function openModal() {
     runtimeState.chrome.modal.hidden = false;
     runtimeState.chrome.modal.dataset.open = 'true';
     renderModal();
-    setStatus(`目前共有 ${getCommands().length} 筆斜線命令。`);
+    setStatus(t('ui.status_count', [getCommands().length]));
 }
 
 function closeModal() {
@@ -1336,7 +1370,7 @@ async function saveCurrentCommand() {
     const chrome = runtimeState.chrome;
     const selected = getSelectedCommand();
     if (!selected) {
-        setStatus('目前沒有可儲存的命令。', 'error');
+        setStatus(t('ui.error_nothing_to_save'), 'error');
         return;
     }
 
@@ -1344,13 +1378,13 @@ async function saveCurrentCommand() {
     const prompt = String(chrome.prompt.value ?? '').trim();
 
     if (!name) {
-        setStatus('命令名稱不能留白。', 'error');
+        setStatus(t('ui.error_name_required'), 'error');
         chrome.name.focus();
         return;
     }
 
     if (!prompt) {
-        setStatus('提示詞內容不能留白。', 'error');
+        setStatus(t('ui.error_prompt_required'), 'error');
         chrome.prompt.focus();
         return;
     }
@@ -1390,13 +1424,12 @@ async function createCommand() {
     await persistEnvelope(nextEnvelope);
     renderModal();
     refreshSlashStateFromEditor();
-    setStatus(`已新增 /${nextCommand.name}。`, 'success');
 }
 
 async function deleteCommand() {
     const selected = getSelectedCommand();
     if (!selected) {
-        setStatus('目前沒有可刪除的命令。', 'error');
+        setStatus(t('ui.error_nothing_to_delete'), 'error');
         return;
     }
 
@@ -1409,20 +1442,20 @@ async function deleteCommand() {
     });
     renderModal();
     refreshSlashStateFromEditor();
-    setStatus(`已刪除 /${selected.name}。`, 'success');
+    setStatus(t('ui.status_deleted', [selected.name]), 'success');
 }
 
 async function moveSelectedCommand(direction) {
     const commands = [...getCommands()];
     const currentIndex = commands.findIndex((command) => command.id === runtimeState.selectedCommandId);
     if (currentIndex === -1) {
-        setStatus('目前沒有可移動的命令。', 'error');
+        setStatus(t('ui.error_nothing_to_delete'), 'error');
         return;
     }
 
     const targetIndex = currentIndex + direction;
     if (targetIndex < 0 || targetIndex >= commands.length) {
-        setStatus('這筆命令不能再移動了。');
+        setStatus(t('ui.status_no_move'));
         return;
     }
 
@@ -1435,7 +1468,7 @@ async function moveSelectedCommand(direction) {
     });
     renderModal();
     refreshSlashStateFromEditor();
-    setStatus(`已更新 /${item.name} 的排序。`, 'success');
+    setStatus(t('ui.status_reordered', [item.name]), 'success');
 }
 
 async function resetDefaults() {
@@ -1468,14 +1501,14 @@ async function exportCommands() {
         }
     }
 
-    setStatus(copied ? '已匯出目前 JSON，並複製到剪貼簿。' : '已匯出目前 JSON 到文字框。', 'success');
+    setStatus(copied ? t('ui.status_exported_copied') : t('ui.status_exported_textarea'), 'success');
 }
 
 async function importCommands() {
     const chrome = runtimeState.chrome;
     const rawText = String(chrome?.transfer?.value ?? '').trim();
     if (!rawText) {
-        setStatus('請先在文字框貼上 JSON。', 'error');
+        setStatus(t('ui.error_json_required'), 'error');
         chrome?.transfer?.focus();
         return;
     }
@@ -1484,7 +1517,7 @@ async function importCommands() {
     try {
         nextEnvelope = parseImportedEnvelope(rawText, runtimeState.commandEnvelope);
     } catch (error) {
-        setStatus(error?.message || 'JSON 解析失敗。', 'error');
+        setStatus(t('ui.error_json_parse', [error?.message || 'unknown']), 'error');
         return;
     }
 
@@ -1492,7 +1525,7 @@ async function importCommands() {
     await persistEnvelope(nextEnvelope);
     renderModal();
     refreshSlashStateFromEditor();
-    setStatus(`已匯入 ${nextEnvelope.commands.length} 筆斜線命令。`, 'success');
+    setStatus(t('ui.status_imported', [nextEnvelope.commands.length]), 'success');
 }
 
 // ---------------------------------------------------------------------------
