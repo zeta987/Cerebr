@@ -151,23 +151,6 @@ function serializeEnvelope(envelope) {
     };
 }
 
-function createBlankCommand(existingCommands = []) {
-    const now = Date.now();
-    const nextIndex = existingCommands.length + 1;
-    const name = t('ui.blank_command_name', [nextIndex]);
-
-    return decorateCommand({
-        id: createCommandId(),
-        name,
-        label: name,
-        prompt: t('ui.blank_command_prompt'),
-        description: '',
-        aliases: [],
-        createdAt: now,
-        updatedAt: now,
-    });
-}
-
 function parseImportedEnvelope(rawText, existingEnvelope = null) {
     const payload = JSON.parse(rawText);
     const fallbackInitializedAt = existingEnvelope?.meta?.initializedAt || Date.now();
@@ -413,8 +396,8 @@ function injectPluginStyles(documentRef) {
     style.dataset.cerebrLiteSlashStyle = 'true';
     style.textContent = `
         .cerebr-lite-slash-settings-button {
-            width: 36px;
-            height: 36px;
+            width: 34px;
+            height: 34px;
             border-radius: 12px;
             border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.16)) 82%, transparent);
             background: color-mix(in srgb, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)) 84%, rgba(96,165,250,0.12));
@@ -429,9 +412,9 @@ function injectPluginStyles(documentRef) {
             transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
             flex: 0 0 auto;
             margin-left: 8px;
+            margin-right: 8px;
             align-self: center;
         }
-
         .cerebr-lite-slash-settings-button:hover,
         .cerebr-lite-slash-settings-button:focus-visible {
             outline: none;
@@ -439,7 +422,6 @@ function injectPluginStyles(documentRef) {
             border-color: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 55%, transparent);
             background: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 14%, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)));
         }
-
         .cerebr-lite-slash-picker {
             position: absolute;
             left: 56px;
@@ -459,93 +441,40 @@ function injectPluginStyles(documentRef) {
             -webkit-backdrop-filter: blur(18px);
             z-index: 120;
         }
-
         #input-container .cerebr-lite-slash-picker {
             bottom: calc(100% - 12px);
         }
-
-        .cerebr-lite-slash-picker[data-open="true"] {
-            display: flex;
-        }
-
+        .cerebr-lite-slash-picker[data-open="true"] { display: flex; }
         .cerebr-lite-slash-picker__item {
-            display: grid;
-            gap: 4px;
-            padding: 10px 12px;
-            border: 1px solid transparent;
-            border-radius: 12px;
-            background: transparent;
-            color: inherit;
-            cursor: pointer;
-            text-align: left;
+            display: grid; gap: 4px; padding: 10px 12px;
+            border: 1px solid transparent; border-radius: 12px;
+            background: transparent; color: inherit; cursor: pointer; text-align: left;
         }
-
         .cerebr-lite-slash-picker__item:hover,
         .cerebr-lite-slash-picker__item[data-active="true"] {
             border-color: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 55%, transparent);
             background: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 12%, transparent);
         }
-
-        .cerebr-lite-slash-picker__token-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .cerebr-lite-slash-picker__token {
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            font-size: 12px;
-            color: var(--cerebr-link-color, #60a5fa);
-        }
-
-        .cerebr-lite-slash-picker__label {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--cerebr-text-color, #f8fafc);
-        }
-
-        .cerebr-lite-slash-picker__description {
-            font-size: 12px;
-            line-height: 1.5;
-            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72));
-        }
-
-        .cerebr-lite-slash-picker__empty {
-            padding: 10px 12px;
-            border-radius: 12px;
-            background: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 8%, transparent);
-            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.78));
-            font-size: 12px;
-            line-height: 1.5;
-        }
+        .cerebr-lite-slash-picker__token-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .cerebr-lite-slash-picker__token { font-family: 'Menlo','Monaco','Courier New',monospace; font-size: 12px; color: var(--cerebr-link-color, #60a5fa); }
+        .cerebr-lite-slash-picker__label { font-size: 13px; font-weight: 600; color: var(--cerebr-text-color, #f8fafc); }
+        .cerebr-lite-slash-picker__description { font-size: 12px; line-height: 1.5; color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72)); }
+        .cerebr-lite-slash-picker__empty { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 8%, transparent); color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.78)); font-size: 12px; line-height: 1.5; }
 
         .cerebr-lite-slash-modal {
-            position: fixed;
-            inset: 0;
-            display: none;
-            align-items: flex-end;
-            justify-content: center;
-            padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-            z-index: 160;
+            position: fixed; inset: 0; display: none; align-items: flex-end; justify-content: center;
+            padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); z-index: 160;
         }
-
-        .cerebr-lite-slash-modal[data-open="true"] {
-            display: flex;
-        }
-
+        .cerebr-lite-slash-modal[data-open="true"] { display: flex; }
         .cerebr-lite-slash-modal__backdrop {
-            position: absolute;
-            inset: 0;
+            position: absolute; inset: 0;
             background: rgba(15, 23, 42, 0.52);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
         }
-
         .cerebr-lite-slash-modal__panel {
             position: relative;
-            width: min(940px, calc(100vw - 24px));
-            max-height: min(78vh, 860px);
+            width: min(480px, calc(100vw - 24px));
+            max-height: min(88vh, 720px);
             border-radius: 24px;
             border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.14)) 78%, transparent);
             background: color-mix(in srgb, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)) 94%, rgba(15, 23, 42, 0.98));
@@ -554,268 +483,155 @@ function injectPluginStyles(documentRef) {
             grid-template-rows: auto 1fr;
             overflow: hidden;
         }
-
         .cerebr-lite-slash-modal__header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 18px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 16px; padding: 16px 18px;
             border-bottom: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.12)) 80%, transparent);
         }
-
-        .cerebr-lite-slash-modal__title {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--cerebr-text-color, #f8fafc);
+        .cerebr-lite-slash-modal__title { font-size: 16px; font-weight: 700; color: var(--cerebr-text-color, #f8fafc); }
+        .cerebr-lite-slash-modal__subtitle { margin-top: 4px; font-size: 12px; color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72)); line-height: 1.5; }
+        .cerebr-lite-slash-modal__edit-title {
+            display: flex; align-items: center; gap: 6px;
+            font-family: 'Menlo','Monaco','Courier New',monospace;
+            font-size: 14px; font-weight: 600; color: var(--cerebr-link-color, #60a5fa);
         }
-
-        .cerebr-lite-slash-modal__subtitle {
-            margin-top: 4px;
-            font-size: 12px;
-            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72));
-            line-height: 1.5;
+        .cerebr-lite-slash-modal__dirty-dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 999px;
+            background: #fb7185; vertical-align: middle;
         }
-
+        .cerebr-lite-slash-modal__back {
+            padding: 4px 10px; min-height: 28px; font-size: 12px;
+        }
         .cerebr-lite-slash-modal__close {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
+            width: 34px; height: 34px; border-radius: 10px;
             border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.14)) 82%, transparent);
-            background: transparent;
-            color: inherit;
-            cursor: pointer;
-            font-size: 16px;
+            background: transparent; color: inherit; cursor: pointer; font-size: 16px;
         }
-
-        .cerebr-lite-slash-modal__body {
-            display: grid;
-            grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
-            min-height: 0;
+        .cerebr-lite-slash-modal__body { min-height: 0; overflow: hidden; }
+        .cerebr-lite-slash-modal__list-view,
+        .cerebr-lite-slash-modal__edit-view {
+            display: none; flex-direction: column; min-height: 0;
+            height: 100%; overflow-y: auto; padding: 16px 18px 20px;
         }
+        .cerebr-lite-slash-modal__body[data-view="list"] .cerebr-lite-slash-modal__list-view { display: flex; }
+        .cerebr-lite-slash-modal__body[data-view="edit"] .cerebr-lite-slash-modal__edit-view { display: flex; }
+        .cerebr-lite-slash-modal[data-view-mode="list"] [data-header-edit],
+        .cerebr-lite-slash-modal[data-view-mode="edit"] [data-header-list] { display: none; }
 
-        .cerebr-lite-slash-modal__sidebar,
-        .cerebr-lite-slash-modal__editor {
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
+        .cerebr-lite-slash-modal__toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+        .cerebr-lite-slash-modal__menu-wrapper { position: relative; margin-left: auto; }
+        .cerebr-lite-slash-modal__menu {
+            position: absolute; right: 0; top: calc(100% + 6px);
+            min-width: 180px; padding: 6px; display: grid; gap: 2px;
+            border-radius: 12px; border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.14)) 82%, transparent);
+            background: color-mix(in srgb, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)) 96%, rgba(15,23,42,0.98));
+            box-shadow: 0 16px 40px rgba(15,23,42,0.35);
+            z-index: 4;
         }
-
-        .cerebr-lite-slash-modal__sidebar {
-            border-right: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.12)) 80%, transparent);
-            background: color-mix(in srgb, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)) 82%, rgba(148, 163, 184, 0.04));
+        .cerebr-lite-slash-modal__menu[hidden] { display: none; }
+        .cerebr-lite-slash-modal__menu-item {
+            text-align: left; padding: 8px 10px; border-radius: 8px;
+            background: transparent; border: none; color: inherit; font-size: 13px; cursor: pointer;
         }
-
-        .cerebr-lite-slash-modal__toolbar,
-        .cerebr-lite-slash-modal__actions,
-        .cerebr-lite-slash-modal__transfer-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
+        .cerebr-lite-slash-modal__menu-item:hover,
+        .cerebr-lite-slash-modal__menu-item:focus-visible {
+            outline: none;
+            background: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 12%, transparent);
         }
-
-        .cerebr-lite-slash-modal__toolbar {
-            padding: 16px;
-            border-bottom: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.12)) 80%, transparent);
-        }
-
-        .cerebr-lite-slash-modal__command-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 12px;
-            display: grid;
-            gap: 8px;
-        }
-
+        .cerebr-lite-slash-modal__command-list { flex: 1; overflow-y: auto; display: grid; gap: 8px; }
         .cerebr-lite-slash-modal__command {
-            border: 1px solid transparent;
-            border-radius: 14px;
-            background: transparent;
-            color: inherit;
-            text-align: left;
-            cursor: pointer;
-            padding: 12px;
-            display: grid;
-            gap: 4px;
+            border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.12)) 80%, transparent);
+            border-radius: 14px; background: transparent; color: inherit;
+            text-align: left; cursor: pointer; padding: 12px; display: grid; gap: 4px;
         }
-
         .cerebr-lite-slash-modal__command:hover,
         .cerebr-lite-slash-modal__command[data-active="true"] {
             border-color: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 55%, transparent);
             background: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 12%, transparent);
         }
-
-        .cerebr-lite-slash-modal__command-token {
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            font-size: 12px;
-            color: var(--cerebr-link-color, #60a5fa);
-        }
-
-        .cerebr-lite-slash-modal__command-label {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--cerebr-text-color, #f8fafc);
-        }
-
-        .cerebr-lite-slash-modal__command-snippet {
-            font-size: 12px;
-            line-height: 1.5;
-            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72));
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-        }
-
+        .cerebr-lite-slash-modal__command-token { font-family: 'Menlo','Monaco','Courier New',monospace; font-size: 12px; color: var(--cerebr-link-color, #60a5fa); }
+        .cerebr-lite-slash-modal__command-label { font-size: 13px; font-weight: 600; color: var(--cerebr-text-color, #f8fafc); }
+        .cerebr-lite-slash-modal__command-snippet { font-size: 12px; line-height: 1.5; color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72)); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         .cerebr-lite-slash-modal__empty {
-            margin: 12px;
-            padding: 16px;
-            border-radius: 14px;
+            margin-top: 8px; padding: 16px; border-radius: 14px;
             border: 1px dashed color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.18)) 80%, transparent);
             color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72));
-            font-size: 12px;
-            line-height: 1.6;
+            font-size: 12px; line-height: 1.6;
         }
-
-        .cerebr-lite-slash-modal__editor {
-            padding: 18px 20px 20px;
-            overflow-y: auto;
-            gap: 18px;
+        .cerebr-lite-slash-modal__transfer-panel {
+            margin-top: 10px; padding: 12px; border-radius: 14px;
+            border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.12)) 80%, transparent);
+            background: color-mix(in srgb, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)) 82%, rgba(148,163,184,0.05));
+            display: grid; gap: 8px;
         }
-
-        .cerebr-lite-slash-modal__status {
-            min-height: 18px;
-            font-size: 12px;
-            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72));
-        }
-
-        .cerebr-lite-slash-modal__status[data-tone="error"] {
-            color: #fda4af;
-        }
-
-        .cerebr-lite-slash-modal__status[data-tone="success"] {
-            color: #86efac;
-        }
-
-        .cerebr-lite-slash-modal__field-grid {
-            display: grid;
-            gap: 14px;
-        }
-
-        .cerebr-lite-slash-modal__field-group {
-            display: grid;
-            gap: 6px;
-        }
-
-        .cerebr-lite-slash-modal__field-group label {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.8));
-        }
-
-        .cerebr-lite-slash-modal__field-group input,
-        .cerebr-lite-slash-modal__field-group textarea {
-            width: 100%;
-            box-sizing: border-box;
-            border-radius: 12px;
+        .cerebr-lite-slash-modal__transfer-panel[hidden] { display: none; }
+        .cerebr-lite-slash-modal__transfer {
+            width: 100%; min-height: 110px; box-sizing: border-box;
+            border-radius: 10px;
             border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.14)) 82%, transparent);
             background: color-mix(in srgb, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)) 78%, rgba(15,23,42,0.92));
             color: var(--cerebr-text-color, #f8fafc);
-            padding: 10px 12px;
-            font-size: 13px;
-            line-height: 1.6;
-            outline: none;
-            resize: vertical;
+            padding: 10px; font-family: 'Menlo','Monaco','Courier New',monospace; font-size: 12px; resize: vertical;
         }
+        .cerebr-lite-slash-modal__transfer-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+        .cerebr-lite-slash-modal__field-grid { display: grid; gap: 14px; }
+        .cerebr-lite-slash-modal__field-group { display: grid; gap: 6px; }
+        .cerebr-lite-slash-modal__field-group label {
+            font-size: 12px; font-weight: 600;
+            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.8));
+        }
+        .cerebr-lite-slash-modal__field-group input,
+        .cerebr-lite-slash-modal__field-group textarea {
+            width: 100%; box-sizing: border-box; border-radius: 12px;
+            border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.14)) 82%, transparent);
+            background: color-mix(in srgb, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)) 78%, rgba(15,23,42,0.92));
+            color: var(--cerebr-text-color, #f8fafc);
+            padding: 10px 12px; font-size: 13px; line-height: 1.6;
+            outline: none; resize: vertical;
+        }
         .cerebr-lite-slash-modal__field-group input:focus,
         .cerebr-lite-slash-modal__field-group textarea:focus {
             border-color: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 55%, transparent);
             box-shadow: 0 0 0 3px color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 18%, transparent);
         }
-
         .cerebr-lite-slash-modal__field-note,
-        .cerebr-lite-slash-modal__meta {
-            font-size: 12px;
-            line-height: 1.6;
-            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72));
-        }
-
-        .cerebr-lite-slash-modal__section {
-            display: grid;
-            gap: 10px;
-            padding: 14px;
-            border-radius: 16px;
-            border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.12)) 80%, transparent);
-            background: color-mix(in srgb, var(--cerebr-input-bar-bg, rgba(17,24,39,0.96)) 82%, rgba(148, 163, 184, 0.05));
-        }
-
-        .cerebr-lite-slash-modal__section-title {
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--cerebr-text-color, #f8fafc);
-        }
-
-        .cerebr-lite-slash-modal__transfer {
-            min-height: 132px;
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            font-size: 12px;
-        }
-
+        .cerebr-lite-slash-modal__meta { font-size: 12px; line-height: 1.6; color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72)); }
+        .cerebr-lite-slash-modal__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
         .cerebr-lite-slash-modal__button {
-            min-height: 34px;
-            padding: 0 12px;
-            border-radius: 10px;
+            min-height: 34px; padding: 0 12px; border-radius: 10px;
             border: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.14)) 82%, transparent);
-            background: transparent;
-            color: inherit;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
+            background: transparent; color: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
             transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
         }
-
         .cerebr-lite-slash-modal__button:hover,
         .cerebr-lite-slash-modal__button:focus-visible {
-            outline: none;
-            transform: translateY(-1px);
+            outline: none; transform: translateY(-1px);
             border-color: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 55%, transparent);
             background: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 12%, transparent);
         }
-
         .cerebr-lite-slash-modal__button--primary {
             background: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 18%, transparent);
             border-color: color-mix(in srgb, var(--cerebr-link-color, #60a5fa) 45%, transparent);
         }
-
         .cerebr-lite-slash-modal__button--danger:hover,
         .cerebr-lite-slash-modal__button--danger:focus-visible {
             border-color: rgba(248, 113, 113, 0.58);
             background: rgba(248, 113, 113, 0.12);
         }
-
-        .cerebr-lite-slash-modal__button:disabled {
-            opacity: 0.48;
-            cursor: not-allowed;
-            transform: none;
+        .cerebr-lite-slash-modal__button:disabled { opacity: 0.48; cursor: not-allowed; transform: none; }
+        .cerebr-lite-slash-modal__status {
+            min-height: 18px; font-size: 12px; margin-top: 8px;
+            color: var(--cerebr-text-secondary-color, rgba(248,250,252,0.72));
         }
+        .cerebr-lite-slash-modal__status[data-tone="error"] { color: #fda4af; }
+        .cerebr-lite-slash-modal__status[data-tone="success"] { color: #86efac; }
 
-        @media (max-width: 860px) {
-            .cerebr-lite-slash-picker {
-                left: 12px;
-                right: 12px;
+        @media (max-width: 480px) {
+            .cerebr-lite-slash-modal__panel {
+                width: 100vw; max-height: 100vh; border-radius: 0;
             }
-
-            .cerebr-lite-slash-modal__body {
-                grid-template-columns: 1fr;
-            }
-
-            .cerebr-lite-slash-modal__sidebar {
-                border-right: none;
-                border-bottom: 1px solid color-mix(in srgb, var(--cerebr-border-color, rgba(255,255,255,0.12)) 80%, transparent);
-                max-height: 240px;
-            }
+            .cerebr-lite-slash-picker { left: 12px; right: 12px; }
         }
     `;
     documentRef.head.appendChild(style);
@@ -909,25 +725,48 @@ function createSettingsModal(documentRef) {
     modal.hidden = true;
     modal.innerHTML = `
         <div class="cerebr-lite-slash-modal__backdrop" data-modal-close="true"></div>
-        <section class="cerebr-lite-slash-modal__panel" role="dialog" aria-modal="true" aria-label="Lite slash command editor">
-            <header class="cerebr-lite-slash-modal__header">
+        <section class="cerebr-lite-slash-modal__panel" role="dialog" aria-modal="true" aria-labelledby="cerebr-lite-slash-modal-title">
+            <header class="cerebr-lite-slash-modal__header" data-header-list>
                 <div>
-                    <div class="cerebr-lite-slash-modal__title" data-i18n="ui.settings_title">Lite Slash Commands</div>
+                    <div id="cerebr-lite-slash-modal-title" class="cerebr-lite-slash-modal__title" data-i18n="ui.settings_title">Lite Slash Commands</div>
                     <div class="cerebr-lite-slash-modal__subtitle" data-i18n="ui.settings_subtitle"></div>
                 </div>
-                <button type="button" class="cerebr-lite-slash-modal__close" data-modal-close="true" data-i18n-attr="aria-label:ui.close" aria-label="Close slash command editor">✕</button>
+                <button type="button" class="cerebr-lite-slash-modal__close" data-modal-close="true" data-i18n-attr="aria-label:ui.close">✕</button>
             </header>
-            <div class="cerebr-lite-slash-modal__body">
-                <aside class="cerebr-lite-slash-modal__sidebar">
+            <header class="cerebr-lite-slash-modal__header" data-header-edit>
+                <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__back" data-action="back-to-list" data-i18n="ui.back_to_list" data-i18n-attr="aria-label:ui.back_to_list"></button>
+                <div class="cerebr-lite-slash-modal__edit-title" data-edit-title>
+                    <span data-edit-token>/</span>
+                    <span class="cerebr-lite-slash-modal__dirty-dot" data-dirty-dot hidden></span>
+                </div>
+                <button type="button" class="cerebr-lite-slash-modal__close" data-modal-close="true" data-i18n-attr="aria-label:ui.close">✕</button>
+            </header>
+            <div class="cerebr-lite-slash-modal__body" data-view="list">
+                <section class="cerebr-lite-slash-modal__list-view">
                     <div class="cerebr-lite-slash-modal__toolbar">
                         <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--primary" data-action="create" data-i18n="ui.create_command"></button>
-                        <button type="button" class="cerebr-lite-slash-modal__button" data-action="reset" data-i18n="ui.reset_defaults"></button>
+                        <div class="cerebr-lite-slash-modal__menu-wrapper" data-menu-wrapper>
+                            <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__menu-trigger" data-action="toggle-menu" aria-haspopup="menu" aria-expanded="false" data-i18n="ui.more_menu"></button>
+                            <div class="cerebr-lite-slash-modal__menu" role="menu" data-menu hidden>
+                                <button type="button" class="cerebr-lite-slash-modal__menu-item" data-action="reset" role="menuitem" data-i18n="ui.reset_defaults"></button>
+                                <button type="button" class="cerebr-lite-slash-modal__menu-item" data-action="open-export" role="menuitem" data-i18n="ui.export_json"></button>
+                                <button type="button" class="cerebr-lite-slash-modal__menu-item" data-action="open-import" role="menuitem" data-i18n="ui.import_json"></button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="cerebr-lite-slash-modal__command-list" data-command-list></div>
+                    <div class="cerebr-lite-slash-modal__command-list" data-command-list role="list"></div>
                     <div class="cerebr-lite-slash-modal__empty" data-empty-state hidden data-i18n="ui.list_empty"></div>
-                </aside>
-                <main class="cerebr-lite-slash-modal__editor">
+                    <div class="cerebr-lite-slash-modal__transfer-panel" data-transfer-panel hidden>
+                        <div class="cerebr-lite-slash-modal__field-note" data-i18n="ui.import_note"></div>
+                        <textarea class="cerebr-lite-slash-modal__transfer" data-transfer rows="7"></textarea>
+                        <div class="cerebr-lite-slash-modal__transfer-actions">
+                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="export" data-i18n="ui.export_action"></button>
+                            <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--primary" data-action="import" data-i18n="ui.import_action"></button>
+                        </div>
+                    </div>
                     <div class="cerebr-lite-slash-modal__status" data-status></div>
+                </section>
+                <section class="cerebr-lite-slash-modal__edit-view">
                     <div class="cerebr-lite-slash-modal__field-grid">
                         <div class="cerebr-lite-slash-modal__field-group">
                             <label for="cerebr-lite-slash-name" data-i18n="ui.field_name_label"></label>
@@ -952,23 +791,14 @@ function createSettingsModal(documentRef) {
                         </div>
                         <div class="cerebr-lite-slash-modal__meta" data-meta></div>
                         <div class="cerebr-lite-slash-modal__actions">
-                            <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--primary" data-action="save" data-i18n="ui.save_changes"></button>
                             <button type="button" class="cerebr-lite-slash-modal__button" data-action="move-up" data-i18n="ui.move_up"></button>
                             <button type="button" class="cerebr-lite-slash-modal__button" data-action="move-down" data-i18n="ui.move_down"></button>
                             <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--danger" data-action="delete" data-i18n="ui.delete_command"></button>
-                            <button type="button" class="cerebr-lite-slash-modal__button" data-modal-close="true" data-i18n="ui.close"></button>
+                            <button type="button" class="cerebr-lite-slash-modal__button cerebr-lite-slash-modal__button--primary" data-action="save" data-i18n="ui.save_changes"></button>
                         </div>
                     </div>
-                    <section class="cerebr-lite-slash-modal__section">
-                        <div class="cerebr-lite-slash-modal__section-title" data-i18n="ui.import_json"></div>
-                        <div class="cerebr-lite-slash-modal__field-note" data-i18n="ui.import_note"></div>
-                        <div class="cerebr-lite-slash-modal__transfer-actions">
-                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="export" data-i18n="ui.export_json"></button>
-                            <button type="button" class="cerebr-lite-slash-modal__button" data-action="import" data-i18n="ui.import_json"></button>
-                        </div>
-                        <textarea class="cerebr-lite-slash-modal__transfer" data-transfer rows="8" placeholder="按下匯出後會把目前設定寫到這裡，也可以把 JSON 貼進來再按匯入。"></textarea>
-                    </section>
-                </main>
+                    <div class="cerebr-lite-slash-modal__status" data-status-edit></div>
+                </section>
             </div>
         </section>
     `;
@@ -977,11 +807,22 @@ function createSettingsModal(documentRef) {
 
     return {
         modal,
+        body: modal.querySelector('.cerebr-lite-slash-modal__body'),
+        listView: modal.querySelector('.cerebr-lite-slash-modal__list-view'),
+        editView: modal.querySelector('.cerebr-lite-slash-modal__edit-view'),
+        headerList: modal.querySelector('[data-header-list]'),
+        headerEdit: modal.querySelector('[data-header-edit]'),
+        editToken: modal.querySelector('[data-edit-token]'),
+        dirtyDot: modal.querySelector('[data-dirty-dot]'),
         list: modal.querySelector('[data-command-list]'),
         emptyState: modal.querySelector('[data-empty-state]'),
         status: modal.querySelector('[data-status]'),
+        statusEdit: modal.querySelector('[data-status-edit]'),
         meta: modal.querySelector('[data-meta]'),
         transfer: modal.querySelector('[data-transfer]'),
+        transferPanel: modal.querySelector('[data-transfer-panel]'),
+        menu: modal.querySelector('[data-menu]'),
+        menuWrapper: modal.querySelector('[data-menu-wrapper]'),
         name: modal.querySelector('[data-field="name"]'),
         label: modal.querySelector('[data-field="label"]'),
         aliases: modal.querySelector('[data-field="aliases"]'),
@@ -1001,6 +842,52 @@ function formatTimestamp(timestamp) {
     } catch {
         return String(timestamp);
     }
+}
+
+function switchView(nextView) {
+    if (!runtimeState.chrome?.body) return;
+    runtimeState.view = nextView === 'edit' ? 'edit' : 'list';
+    runtimeState.chrome.body.dataset.view = runtimeState.view;
+    runtimeState.chrome.modal.dataset.viewMode = runtimeState.view;
+
+    // Hide overflow menu on every view switch.
+    hideOverflowMenu();
+}
+
+function hideOverflowMenu() {
+    if (!runtimeState.chrome?.menu) return;
+    runtimeState.chrome.menu.hidden = true;
+    runtimeState.menuOpen = false;
+    const trigger = runtimeState.chrome.menu
+        .closest('[data-menu-wrapper]')
+        ?.querySelector('[data-action="toggle-menu"]');
+    trigger?.setAttribute('aria-expanded', 'false');
+}
+
+function showOverflowMenu() {
+    if (!runtimeState.chrome?.menu) return;
+    runtimeState.chrome.menu.hidden = false;
+    runtimeState.menuOpen = true;
+    const trigger = runtimeState.chrome.menu
+        .closest('[data-menu-wrapper]')
+        ?.querySelector('[data-action="toggle-menu"]');
+    trigger?.setAttribute('aria-expanded', 'true');
+}
+
+function openTransferPanel(mode) {
+    const panel = runtimeState.chrome?.transferPanel;
+    if (!panel) return;
+    panel.hidden = false;
+    panel.dataset.mode = mode; // 'export' | 'import'
+    hideOverflowMenu();
+    runtimeState.chrome.transfer?.focus();
+}
+
+function closeTransferPanel() {
+    const panel = runtimeState.chrome?.transferPanel;
+    if (!panel) return;
+    panel.hidden = true;
+    delete panel.dataset.mode;
 }
 
 function buildCommandPreview(command) {
@@ -1068,6 +955,10 @@ const runtimeState = {
     selectedCommandId: '',
     editor: null,            // api.editor reference
     eventCleanups: [],
+    view: 'list',               // 'list' | 'edit'
+    editorDraft: null,          // { isNewDraft, command, hasUnsavedChanges }
+    menuOpen: false,            // overflow (⋯) menu visibility
+    lastFocusedCardId: null,    // which card was selected before entering edit view
 };
 
 function resetRuntimeState() {
@@ -1088,6 +979,10 @@ function resetRuntimeState() {
         selectedCommandId: '',
         editor: null,
         eventCleanups: [],
+        view: 'list',
+        editorDraft: null,
+        menuOpen: false,
+        lastFocusedCardId: null,
     });
 }
 
@@ -1162,6 +1057,7 @@ export default definePlugin({
 
         // 5. Wire up event handlers
         bindEventHandlers();
+        installEditorDirtyTracking();
 
         // 6. Initial picker paint – user may already have draft text
         refreshSlashStateFromEditor();
@@ -1199,11 +1095,6 @@ function ensureSelection() {
         return;
     }
     runtimeState.selectedCommandId = commands[0]?.id || '';
-}
-
-function getSelectedCommand() {
-    ensureSelection();
-    return getCommands().find((command) => command.id === runtimeState.selectedCommandId) || null;
 }
 
 function setStatus(message = '', tone = 'info') {
@@ -1302,12 +1193,21 @@ function renderCommandList() {
         item.type = 'button';
         item.className = 'cerebr-lite-slash-modal__command';
         item.dataset.commandId = command.id;
-        item.dataset.active = String(command.id === runtimeState.selectedCommandId);
-        item.innerHTML = `
-            <div class="cerebr-lite-slash-modal__command-token">/${command.name}</div>
-            <div class="cerebr-lite-slash-modal__command-label">${command.label}</div>
-            <div class="cerebr-lite-slash-modal__command-snippet">${buildCommandPreview(command)}</div>
-        `;
+        item.setAttribute('role', 'listitem');
+
+        const tokenEl = document.createElement('div');
+        tokenEl.className = 'cerebr-lite-slash-modal__command-token';
+        tokenEl.textContent = `/${command.name}`;
+
+        const labelEl = document.createElement('div');
+        labelEl.className = 'cerebr-lite-slash-modal__command-label';
+        labelEl.textContent = command.label || '';
+
+        const snippetEl = document.createElement('div');
+        snippetEl.className = 'cerebr-lite-slash-modal__command-snippet';
+        snippetEl.textContent = buildCommandPreview(command);
+
+        item.append(tokenEl, labelEl, snippetEl);
         fragment.appendChild(item);
     });
 
@@ -1318,28 +1218,58 @@ function renderEditorFields() {
     const chrome = runtimeState.chrome;
     if (!chrome) return;
 
-    const selected = getSelectedCommand();
+    const draft = runtimeState.editorDraft;
     const inputs = [chrome.name, chrome.label, chrome.aliases, chrome.description, chrome.prompt];
 
-    if (!selected) {
-        inputs.forEach((input) => {
-            input.value = '';
-            input.disabled = true;
-        });
+    if (!draft) {
+        inputs.forEach((input) => { input.value = ''; input.disabled = true; });
         chrome.meta.textContent = t('ui.list_empty');
+        chrome.editToken.textContent = '/';
+        chrome.dirtyDot.hidden = true;
         return;
     }
 
-    inputs.forEach((input) => {
-        input.disabled = false;
-    });
+    inputs.forEach((input) => { input.disabled = false; });
 
-    chrome.name.value = selected.name;
-    chrome.label.value = selected.label;
-    chrome.aliases.value = selected.aliases.join(', ');
-    chrome.description.value = selected.description;
-    chrome.prompt.value = selected.prompt;
-    chrome.meta.textContent = t('ui.command_meta', [selected.id, formatTimestamp(selected.createdAt), formatTimestamp(selected.updatedAt)]);
+    chrome.name.value = draft.command.name || '';
+    chrome.label.value = draft.command.label || '';
+    chrome.aliases.value = Array.isArray(draft.command.aliases) ? draft.command.aliases.join(', ') : '';
+    chrome.description.value = draft.command.description || '';
+    chrome.prompt.value = draft.command.prompt || '';
+
+    chrome.editToken.textContent = `/${draft.command.name || ''}`;
+    chrome.dirtyDot.hidden = !draft.hasUnsavedChanges;
+
+    if (draft.isNewDraft) {
+        chrome.meta.textContent = '';
+    } else {
+        chrome.meta.textContent = t('ui.command_meta', [
+            draft.command.id,
+            formatTimestamp(draft.command.createdAt),
+            formatTimestamp(draft.command.updatedAt),
+        ]);
+    }
+}
+
+function installEditorDirtyTracking() {
+    const chrome = runtimeState.chrome;
+    if (!chrome || chrome.__dirtyInstalled) return;
+    chrome.__dirtyInstalled = true;
+
+    const fields = [chrome.name, chrome.label, chrome.aliases, chrome.description, chrome.prompt];
+    fields.forEach((field) => {
+        if (!field) return;
+        field.addEventListener('input', () => {
+            const draft = runtimeState.editorDraft;
+            if (!draft) return;
+            draft.hasUnsavedChanges = true;
+            chrome.dirtyDot.hidden = false;
+            // Keep /name token preview in sync with live input.
+            if (field === chrome.name) {
+                chrome.editToken.textContent = `/${field.value || ''}`;
+            }
+        });
+    });
 }
 
 function renderModal() {
@@ -1350,15 +1280,19 @@ function renderModal() {
 function openModal() {
     runtimeState.isModalOpen = true;
     hidePicker();
-    ensureSelection();
     runtimeState.chrome.modal.hidden = false;
     runtimeState.chrome.modal.dataset.open = 'true';
+    switchView('list');
     renderModal();
     setStatus(t('ui.status_count', [getCommands().length]));
 }
 
 function closeModal() {
     runtimeState.isModalOpen = false;
+    runtimeState.editorDraft = null;
+    runtimeState.lastFocusedCardId = null;
+    closeTransferPanel();
+    hideOverflowMenu();
     if (!runtimeState.chrome?.modal) return;
     runtimeState.chrome.modal.dataset.open = 'false';
     runtimeState.chrome.modal.hidden = true;
@@ -1366,8 +1300,8 @@ function closeModal() {
 
 async function saveCurrentCommand() {
     const chrome = runtimeState.chrome;
-    const selected = getSelectedCommand();
-    if (!selected) {
+    const draft = runtimeState.editorDraft;
+    if (!draft) {
         setStatus(t('ui.error_nothing_to_save'), 'error');
         return;
     }
@@ -1380,7 +1314,6 @@ async function saveCurrentCommand() {
         chrome.name.focus();
         return;
     }
-
     if (!prompt) {
         setStatus(t('ui.error_prompt_required'), 'error');
         chrome.prompt.focus();
@@ -1389,68 +1322,122 @@ async function saveCurrentCommand() {
 
     const now = Date.now();
     const updatedCommand = decorateCommand({
-        ...selected,
-        seedKey: undefined,  // user edits opt out of seed locale sync
+        ...draft.command,
+        seedKey: undefined,
         name,
         label: normalizeString(chrome.label.value, name),
         aliases: normalizeAliasList(chrome.aliases.value),
         description: normalizeString(chrome.description.value),
         prompt,
         updatedAt: now,
+        createdAt: draft.command.createdAt || now,
     });
 
-    const nextEnvelope = {
-        ...runtimeState.commandEnvelope,
-        commands: getCommands().map((command) => (command.id === selected.id ? updatedCommand : command)),
-    };
+    const current = getCommands();
+    const nextCommands = draft.isNewDraft
+        ? [...current, updatedCommand]
+        : current.map((cmd) => (cmd.id === updatedCommand.id ? updatedCommand : cmd));
 
-    await persistEnvelope(nextEnvelope);
+    await persistEnvelope({ ...runtimeState.commandEnvelope, commands: nextCommands });
+
+    // Draft is now saved — refresh editor state so dirty flag resets and meta shows timestamps.
+    runtimeState.editorDraft = {
+        isNewDraft: false,
+        command: JSON.parse(JSON.stringify(updatedCommand)),
+        hasUnsavedChanges: false,
+    };
+    runtimeState.selectedCommandId = updatedCommand.id;
+    runtimeState.lastFocusedCardId = updatedCommand.id;
+
     renderModal();
     refreshSlashStateFromEditor();
     setStatus(t('ui.status_saved', [updatedCommand.name]), 'success');
 }
 
-async function createCommand() {
-    const nextCommand = createBlankCommand(getCommands());
-    runtimeState.selectedCommandId = nextCommand.id;
-
-    const nextEnvelope = {
-        ...runtimeState.commandEnvelope,
-        commands: [...getCommands(), nextCommand],
+function enterEditViewForCommand(command) {
+    const cloned = JSON.parse(JSON.stringify(command));
+    runtimeState.editorDraft = {
+        isNewDraft: false,
+        command: cloned,
+        hasUnsavedChanges: false,
     };
+    runtimeState.selectedCommandId = command.id;
+    runtimeState.lastFocusedCardId = command.id;
+    switchView('edit');
+    renderEditorFields();
+    requestAnimationFrame(() => runtimeState.chrome.name?.focus());
+}
 
-    await persistEnvelope(nextEnvelope);
-    renderModal();
-    refreshSlashStateFromEditor();
+function enterEditViewForNewDraft() {
+    const nextIndex = getCommands().length + 1;
+    const draftCommand = decorateCommand({
+        id: createCommandId(),
+        name: t('ui.blank_command_name', [nextIndex]),
+        label: t('ui.blank_command_name', [nextIndex]),
+        prompt: t('ui.blank_command_prompt'),
+        description: '',
+        aliases: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    });
+    runtimeState.editorDraft = {
+        isNewDraft: true,
+        command: draftCommand,
+        hasUnsavedChanges: true,
+    };
+    runtimeState.selectedCommandId = '';
+    switchView('edit');
+    renderEditorFields();
+    requestAnimationFrame(() => {
+        const el = runtimeState.chrome.name;
+        el?.focus();
+        el?.select?.();
+    });
 }
 
 async function deleteCommand() {
-    const selected = getSelectedCommand();
-    if (!selected) {
-        setStatus(t('ui.error_nothing_to_delete'), 'error');
+    const draft = runtimeState.editorDraft;
+    if (!draft || draft.isNewDraft) {
+        // For a new draft, "delete" is equivalent to going back.
+        discardDraftAndReturnToList();
         return;
     }
 
-    const nextCommands = getCommands().filter((command) => command.id !== selected.id);
-    runtimeState.selectedCommandId = nextCommands[0]?.id || '';
-
-    await persistEnvelope({
-        ...runtimeState.commandEnvelope,
-        commands: nextCommands,
-    });
+    const commands = getCommands().filter((cmd) => cmd.id !== draft.command.id);
+    await persistEnvelope({ ...runtimeState.commandEnvelope, commands });
+    setStatus(t('ui.status_deleted', [draft.command.name]), 'success');
+    runtimeState.editorDraft = null;
+    runtimeState.selectedCommandId = commands[0]?.id || '';
+    runtimeState.lastFocusedCardId = null;
+    switchView('list');
     renderModal();
     refreshSlashStateFromEditor();
-    setStatus(t('ui.status_deleted', [selected.name]), 'success');
+}
+
+function discardDraftAndReturnToList() {
+    runtimeState.editorDraft = null;
+    switchView('list');
+    renderModal();
+    const card = runtimeState.chrome?.list?.querySelector(
+        `[data-command-id="${runtimeState.lastFocusedCardId}"]`,
+    );
+    if (card) {
+        card.focus();
+    } else {
+        runtimeState.chrome?.list?.querySelector('[data-command-id]')?.focus();
+    }
 }
 
 async function moveSelectedCommand(direction) {
-    const commands = [...getCommands()];
-    const currentIndex = commands.findIndex((command) => command.id === runtimeState.selectedCommandId);
-    if (currentIndex === -1) {
-        setStatus(t('ui.error_nothing_to_delete'), 'error');
+    const draft = runtimeState.editorDraft;
+    if (!draft || draft.isNewDraft) {
+        setStatus(t('ui.error_nothing_to_save'), 'error');
         return;
     }
 
+    const commands = [...getCommands()];
+    const currentIndex = commands.findIndex((cmd) => cmd.id === draft.command.id);
+    if (currentIndex === -1) return;
     const targetIndex = currentIndex + direction;
     if (targetIndex < 0 || targetIndex >= commands.length) {
         setStatus(t('ui.status_no_move'));
@@ -1460,13 +1447,10 @@ async function moveSelectedCommand(direction) {
     const [item] = commands.splice(currentIndex, 1);
     commands.splice(targetIndex, 0, item);
 
-    await persistEnvelope({
-        ...runtimeState.commandEnvelope,
-        commands,
-    });
+    await persistEnvelope({ ...runtimeState.commandEnvelope, commands });
+    setStatus(t('ui.status_reordered', [item.name]), 'success');
     renderModal();
     refreshSlashStateFromEditor();
-    setStatus(t('ui.status_reordered', [item.name]), 'success');
 }
 
 async function resetDefaults() {
@@ -1484,10 +1468,9 @@ async function resetDefaults() {
 }
 
 async function exportCommands() {
+    openTransferPanel('export');
     const payload = JSON.stringify(serializeEnvelope(runtimeState.commandEnvelope), null, 2);
-    if (runtimeState.chrome?.transfer) {
-        runtimeState.chrome.transfer.value = payload;
-    }
+    if (runtimeState.chrome?.transfer) runtimeState.chrome.transfer.value = payload;
 
     let copied = false;
     if (navigator.clipboard?.writeText) {
@@ -1498,11 +1481,14 @@ async function exportCommands() {
             console.warn('[Lite Slash Commands] Failed to copy JSON to clipboard', error);
         }
     }
-
-    setStatus(copied ? t('ui.status_exported_copied') : t('ui.status_exported_textarea'), 'success');
+    setStatus(
+        copied ? t('ui.status_exported_copied') : t('ui.status_exported_textarea'),
+        'success',
+    );
 }
 
 async function importCommands() {
+    openTransferPanel('import');
     const chrome = runtimeState.chrome;
     const rawText = String(chrome?.transfer?.value ?? '').trim();
     if (!rawText) {
@@ -1510,7 +1496,6 @@ async function importCommands() {
         chrome?.transfer?.focus();
         return;
     }
-
     let nextEnvelope = null;
     try {
         nextEnvelope = parseImportedEnvelope(rawText, runtimeState.commandEnvelope);
@@ -1518,7 +1503,6 @@ async function importCommands() {
         setStatus(t('ui.error_json_parse', [error?.message || 'unknown']), 'error');
         return;
     }
-
     runtimeState.selectedCommandId = nextEnvelope.commands[0]?.id || '';
     await persistEnvelope(nextEnvelope);
     renderModal();
@@ -1553,11 +1537,18 @@ function bindEventHandlers() {
     // always see the real current input.
     addListener(messageInput, 'keydown', (event) => {
         if (runtimeState.isModalOpen) {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                event.stopPropagation();
-                closeModal();
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (runtimeState.menuOpen) {
+                hideOverflowMenu();
+                return;
             }
+            if (runtimeState.view === 'edit') {
+                discardDraftAndReturnToList();
+                return;
+            }
+            closeModal();
             return;
         }
 
@@ -1647,9 +1638,8 @@ function bindEventHandlers() {
         const commandButton = event.target.closest?.('[data-command-id]');
         if (commandButton) {
             event.preventDefault();
-            runtimeState.selectedCommandId = commandButton.dataset.commandId || '';
-            renderModal();
-            setStatus('');
+            const command = getCommands().find((cmd) => cmd.id === commandButton.dataset.commandId);
+            if (command) enterEditViewForCommand(command);
             return;
         }
 
@@ -1660,19 +1650,44 @@ function bindEventHandlers() {
         const action = actionButton.dataset.action;
 
         try {
-            if (action === 'create') return void (await createCommand());
+            if (action === 'create') return enterEditViewForNewDraft();
+            if (action === 'back-to-list') return discardDraftAndReturnToList();
             if (action === 'save') return void (await saveCurrentCommand());
             if (action === 'delete') return void (await deleteCommand());
             if (action === 'move-up') return void (await moveSelectedCommand(-1));
             if (action === 'move-down') return void (await moveSelectedCommand(1));
-            if (action === 'reset') return void (await resetDefaults());
+            if (action === 'reset') {
+                hideOverflowMenu();
+                return void (await resetDefaults());
+            }
+            if (action === 'toggle-menu') {
+                return void (runtimeState.menuOpen ? hideOverflowMenu() : showOverflowMenu());
+            }
+            if (action === 'open-export') {
+                hideOverflowMenu();
+                openTransferPanel('export');
+                return void (await exportCommands());
+            }
+            if (action === 'open-import') {
+                hideOverflowMenu();
+                openTransferPanel('import');
+                return;
+            }
             if (action === 'export') return void (await exportCommands());
             if (action === 'import') return void (await importCommands());
         } catch (error) {
             console.error('[Lite Slash Commands] Modal action failed', error);
-            setStatus(error?.message || '操作失敗。', 'error');
+            setStatus(error?.message || 'Unknown error', 'error');
         }
     });
+
+    addListener(documentRef, 'pointerdown', (event) => {
+        if (!runtimeState.menuOpen) return;
+        const wrapper = runtimeState.chrome?.menuWrapper;
+        if (wrapper && !wrapper.contains(event.target)) {
+            hideOverflowMenu();
+        }
+    }, true);
 }
 
 function teardown() {
