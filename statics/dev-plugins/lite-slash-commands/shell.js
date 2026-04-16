@@ -766,7 +766,7 @@ function createSettingsModal(documentRef) {
                     </div>
                     <div class="cerebr-lite-slash-modal__status" data-status></div>
                 </section>
-                <section class="cerebr-lite-slash-modal__edit-view">
+                <section class="cerebr-lite-slash-modal__edit-view" role="form" aria-labelledby="cerebr-lite-slash-modal-title">
                     <div class="cerebr-lite-slash-modal__field-grid">
                         <div class="cerebr-lite-slash-modal__field-group">
                             <label for="cerebr-lite-slash-name" data-i18n="ui.field_name_label"></label>
@@ -1262,6 +1262,17 @@ function installEditorDirtyTracking() {
         field.addEventListener('input', () => {
             const draft = runtimeState.editorDraft;
             if (!draft) return;
+            if (runtimeState.view !== 'edit') return;
+
+            // Mirror live input into draft.command so renders (e.g. locale change)
+            // don't clobber unsaved changes with stale values.
+            const fieldName = field.dataset.field;
+            if (fieldName === 'aliases') {
+                draft.command.aliases = normalizeAliasList(field.value);
+            } else if (fieldName) {
+                draft.command[fieldName] = field.value;
+            }
+
             draft.hasUnsavedChanges = true;
             chrome.dirtyDot.hidden = false;
             // Keep /name token preview in sync with live input.
@@ -1431,7 +1442,7 @@ function discardDraftAndReturnToList() {
 async function moveSelectedCommand(direction) {
     const draft = runtimeState.editorDraft;
     if (!draft || draft.isNewDraft) {
-        setStatus(t('ui.error_nothing_to_save'), 'error');
+        setStatus(t('ui.status_no_move'));
         return;
     }
 
