@@ -7,6 +7,7 @@ import { adjustTextareaHeight, createImageTag, showToast } from '../utils/ui.js'
 import { handleImageDrop, readImageFileAsDataUrl } from '../utils/image.js';
 import { syncChatBottomExtraPadding } from '../utils/scroll.js';
 import { t } from '../utils/i18n.js';
+import { getSlashCommandDisplayLabel } from '../utils/slash-commands.js';
 
 // 跟踪输入法状态
 let isComposing = false;
@@ -602,8 +603,9 @@ export function initMessageInput(config) {
 
         historyCursor = null;
 
-        const text = messageInput.textContent.trim();
-        if (!text && !messageInput.querySelector('.image-tag')) return false;
+        const text = (messageInput.textContent || '').replace(/\u200B/g, '').trim();
+        const hasSlashChip = !!messageInput.querySelector('.slash-command-chip');
+        if (!text && !messageInput.querySelector('.image-tag') && !hasSlashChip) return false;
 
         setTimeout(() => {
             sendQueued = false;
@@ -644,6 +646,21 @@ export function initMessageInput(config) {
     // 监听输入框变化
     let historyCursor = null;
     let isHistoryNavigation = false;
+
+    function detectSlashCommand() {
+        const plainText = (messageInput.textContent || '').replace(/\u200B/g, '');
+        const hasChip = messageInput.querySelector('.slash-command-chip');
+        if (!hasChip && plainText.startsWith('/')) {
+            document.dispatchEvent(new CustomEvent('cerebr:slashCommandQuery', {
+                detail: { query: plainText.slice(1) }
+            }));
+            return;
+        }
+
+        if (!hasChip) {
+            document.dispatchEvent(new CustomEvent('cerebr:slashCommandDismiss'));
+        }
+    }
 
     messageInput.addEventListener('input', function(e) {
         const normalizeHtml = (html) => String(html || '').replace(/\s+/g, '').toLowerCase();
@@ -722,6 +739,8 @@ export function initMessageInput(config) {
             clearEditableContent(this);
         }
 
+        detectSlashCommand();
+
     });
 
     // 监听输入框的焦点状态
@@ -753,6 +772,7 @@ export function initMessageInput(config) {
 
     messageInput.addEventListener('compositionend', () => {
         isComposing = false;
+        setTimeout(detectSlashCommand, 0);
     });
 
     messageInput.addEventListener('beforeinput', (e) => {
@@ -863,6 +883,18 @@ export function initMessageInput(config) {
                 return;
             }
         } else if ((e.key === 'Backspace' || e.key === 'Delete')) {
+            if (e.key === 'Backspace') {
+                const chip = messageInput.querySelector('.slash-command-chip');
+                if (chip) {
+                    const { message, imageTags } = getFormattedMessageContent(messageInput);
+                    if (!message.trim() && imageTags.length === 0) {
+                        e.preventDefault();
+                        clearSlashCommandChip(messageInput);
+                        return;
+                    }
+                }
+            }
+
             // 处理图片标签的删除
             const selection = window.getSelection();
             if (selection.rangeCount === 0) return;
@@ -1020,27 +1052,131 @@ export function setPlaceholder({ messageInput, placeholder, timeout }) {
     }
 }
 
+function cloneInputForMessageExtraction(messageInput) {
+    const clone = messageInput.cloneNode(true);
+    clone.querySelectorAll('.slash-command-chip').forEach((element) => element.remove());
+    return clone;
+}
+
+function decodeMessageText(messageInput) {
+    let message = messageInput.innerHTML
+        .replace(/<div><br><\/div>/g, '\n')
+        .replace(/<div>/g, '\n')
+        .replace(/<\/div>/g, '')
+        .replace(/<br\s*\/?>/g, '\n')
+        .replace(/&nbsp;/g, ' ');
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = message;
+    return tempDiv.textContent || '';
+}
+
+function removeSlashChipCursorPlaceholders(messageInput) {
+    const walker = document.createTreeWalker(messageInput, NodeFilter.SHOW_TEXT);
+    const removableNodes = [];
+
+    while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (!node.textContent) continue;
+        if (node.textContent.replace(/\u200B/g, '').length === 0) {
+            removableNodes.push(node);
+        }
+    }
+
+    removableNodes.forEach((node) => node.remove());
+}
+
+export function clearSlashCommandChip(messageInput, { dispatchInput = true, emitEvent = true } = {}) {
+    const chip = messageInput?.querySelector?.('.slash-command-chip');
+    if (!chip) return false;
+
+    chip.remove();
+    removeSlashChipCursorPlaceholders(messageInput);
+
+    if (emitEvent) {
+        document.dispatchEvent(new CustomEvent('cerebr:slashCommandRemoved'));
+    }
+    if (dispatchInput) {
+        messageInput.dispatchEvent(new Event('input'));
+    }
+
+    return true;
+}
+
+export function setSlashCommandChip(messageInput, command) {
+    if (!messageInput || !command) return;
+
+    clearSlashCommandChip(messageInput, { dispatchInput: false, emitEvent: false });
+
+    const walker = document.createTreeWalker(messageInput, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) {
+        textNodes.push(walker.currentNode);
+    }
+    textNodes.forEach((node) => node.remove());
+    Array.from(messageInput.childNodes).forEach((node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        if (node.tagName === 'BR') {
+            node.remove();
+            return;
+        }
+        if (node.tagName === 'DIV' && !node.querySelector('.image-tag') && !(node.textContent || '').trim()) {
+            node.remove();
+        }
+    });
+
+    const chip = document.createElement('span');
+    chip.className = 'slash-command-chip';
+    chip.contentEditable = 'false';
+    chip.dataset.commandId = String(command.id || '');
+
+    const label = document.createElement('span');
+    label.className = 'chip-label';
+    label.textContent = getSlashCommandDisplayLabel(command);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'chip-remove-btn';
+    removeBtn.setAttribute('aria-label', t('slash_cmd_remove_chip_aria'));
+    removeBtn.textContent = '\u00D7';
+    removeBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        clearSlashCommandChip(messageInput);
+        messageInput.focus();
+    });
+
+    chip.appendChild(label);
+    chip.appendChild(removeBtn);
+
+    const spacer = document.createTextNode('\u200B');
+    messageInput.insertBefore(chip, messageInput.firstChild);
+    if (chip.nextSibling) {
+        messageInput.insertBefore(spacer, chip.nextSibling);
+    } else {
+        messageInput.appendChild(spacer);
+    }
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(spacer, spacer.textContent.length);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    messageInput.focus();
+    messageInput.dispatchEvent(new Event('input'));
+}
+
 /**
  * 获取格式化后的消息内容（处理HTML转义和图片）
  * @param {HTMLElement} messageInput - 消息输入框元素
  * @returns {Object} 格式化后的内容和图片标签
  */
 export function getFormattedMessageContent(messageInput) {
-    // 使用innerHTML获取内容，并将<br>转换为\n
-    let message = messageInput.innerHTML
-        .replace(/<div><br><\/div>/g, '\n')  // 处理换行后的空行
-        .replace(/<div>/g, '\n')             // 处理换行后的新行开始
-        .replace(/<\/div>/g, '')             // 处理换行后的新行结束
-        .replace(/<br\s*\/?>/g, '\n')        // 处理单个换行
-        .replace(/&nbsp;/g, ' ');            // 处理空格
-
-    // 将HTML实体转换回实际字符
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = message;
-    message = tempDiv.textContent;
-
-    // 获取图片标签
-    const imageTags = messageInput.querySelectorAll('.image-tag');
+    const clone = cloneInputForMessageExtraction(messageInput);
+    const message = decodeMessageText(clone);
+    const imageTags = clone.querySelectorAll('.image-tag');
 
     return { message, imageTags };
 }

@@ -5,6 +5,30 @@ import { ensureChatElementVisible } from '../../utils/scroll.js';
 import { showToast } from '../../utils/ui.js';
 import { t } from '../../utils/i18n.js';
 import { getInstalledPromptFragments } from '../../plugin/market/plugin-market-service.js';
+import { getSlashCommandDisplayLabel } from '../../utils/slash-commands.js';
+
+function prependSlashCommandPrompt(content, prompt) {
+    const normalizedPrompt = String(prompt || '').trim();
+    if (!normalizedPrompt) return content;
+
+    if (typeof content === 'string') {
+        return content.trim() ? `${normalizedPrompt}\n\n${content}` : normalizedPrompt;
+    }
+
+    if (Array.isArray(content)) {
+        const firstTextIndex = content.findIndex((item) => item?.type === 'text');
+        if (firstTextIndex >= 0) {
+            return content.map((item, index) => (
+                index === firstTextIndex
+                    ? { ...item, text: `${normalizedPrompt}\n\n${item.text}` }
+                    : item
+            ));
+        }
+        return [{ type: 'text', text: normalizedPrompt }, ...content];
+    }
+
+    return content;
+}
 
 export function createChatController({
     chatContainer,
@@ -22,6 +46,8 @@ export function createChatController({
     setThinkingPlaceholder,
     setReplyingPlaceholder,
     restoreDefaultPlaceholder,
+    getActiveSlashCommand,
+    clearActiveSlashCommand,
 }) {
     const abortControllerRef = { current: null, pendingAbort: false };
     let currentController = null;
@@ -232,22 +258,38 @@ export function createChatController({
         abortActiveReply();
 
         const { message, imageTags } = getFormattedMessageContent(messageInput);
-        if (!message.trim() && imageTags.length === 0) return;
+        const activeSlashCommand = getActiveSlashCommand?.() || null;
+        if (!message.trim() && imageTags.length === 0 && !activeSlashCommand) return;
 
         try {
             const stickToBottomOnSend = shouldStickToBottom(chatContainer);
             const content = buildMessageContent(message, imageTags);
+            const slashCommandLabel = activeSlashCommand
+                ? getSlashCommandDisplayLabel(activeSlashCommand)
+                : '';
+            const displayMessage = {
+                role: 'user',
+                content,
+                ...(slashCommandLabel ? { slashCommandLabel } : {})
+            };
             const userMessage = {
                 role: 'user',
-                content
+                content: activeSlashCommand
+                    ? prependSlashCommandPrompt(content, activeSlashCommand.prompt)
+                    : content,
+                ...(slashCommandLabel ? {
+                    displayContent: content,
+                    slashCommandLabel
+                } : {})
             };
 
             appendMessage({
-                text: userMessage,
+                text: displayMessage,
                 sender: 'user',
                 chatContainer,
             });
 
+            clearActiveSlashCommand?.();
             clearMessageInput(messageInput, uiConfig);
             messageInput.focus();
             setThinkingPlaceholder();
