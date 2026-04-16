@@ -1,0 +1,209 @@
+/* Slash commands */
+#slash-commands-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: none;
+    overflow-y: auto;
+    flex-direction: column;
+    background: var(--cerebr-bg-color);
+}
+
+#slash-commands-page.visible {
+    display: flex;
+}
+
+.slash-commands-content {
+    padding: 12px 16px 24px;
+    overflow-y: auto;
+}
+
+.slash-command-card {
+    background: var(--cerebr-message-ai-bg);
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.slash-cmd-field {
+    margin-bottom: 12px;
+}
+
+.slash-cmd-field label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--cerebr-text-color-secondary);
+}
+
+.slash-cmd-field input,
+.slash-cmd-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--cerebr-input-bg, var(--cerebr-bg-color));
+    color: var(--cerebr-text-color);
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.15s ease;
+}
+
+.slash-cmd-field input:focus,
+.slash-cmd-field textarea:focus {
+    outline: none;
+    border-color: var(--cerebr-accent-color, #4A90D9);
+}
+
+.slash-cmd-field textarea {
+    resize: vertical;
+    min-height: 96px;
+}
+
+.slash-cmd-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.slash-cmd-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: none;
+    border: none;
+    color: var(--cerebr-text-color-secondary);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.slash-cmd-delete-btn:hover,
+.slash-cmd-delete-btn:focus-visible {
+    background: var(--cerebr-hover-bg-color);
+    color: #e55353;
+}
+
+.slash-cmd-add-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--cerebr-card-border-color);
+    border-radius: 12px;
+    padding: 12px;
+    color: var(--cerebr-text-color-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.slash-cmd-add-btn:hover,
+.slash-cmd-add-btn:focus-visible {
+    background: var(--cerebr-hover-bg-color);
+    border-color: var(--cerebr-text-color-secondary);
+}
+
+.empty-state {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--cerebr-text-color-secondary);
+    font-size: 14px;
+}
+
+.slash-command-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    z-index: 1000;
+    margin-bottom: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--cerebr-bg-color);
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px var(--cerebr-popup-shadow);
+}
+
+.slash-command-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.slash-command-item:hover,
+.slash-command-item.selected,
+.slash-command-item:focus-visible {
+    background: var(--cerebr-hover-bg-color);
+}
+
+.slash-command-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--cerebr-text-color);
+}
+
+.slash-command-item-label {
+    font-size: 12px;
+    color: var(--cerebr-text-color-secondary);
+}
+
+.slash-command-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 4px;
+    padding: 2px 8px 2px 10px;
+    border-radius: 12px;
+    background: var(--cerebr-accent-color, #4A90D9);
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.4;
+    vertical-align: middle;
+    user-select: none;
+}
+
+.slash-command-chip.chat-badge {
+    display: inline-block;
+    margin-bottom: 6px;
+    padding: 2px 10px;
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.chip-label {
+    white-space: nowrap;
+}
+
+.chip-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 2px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: color 0.1s ease;
+}
+
+.chip-remove-btn:hover,
+.chip-remove-btn:focus-visible {
+    color: rgba(255, 255, 255, 1);
+}

@@ -13,7 +13,14 @@ import { showImagePreview, hideImagePreview, showToast } from '../../utils/ui.js
 import { renderAPICards, createCardCallbacks, selectCard } from '../../components/api-card.js';
 import { initPluginSettings } from '../../components/plugin-settings.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
-import { initMessageInput, handleWindowMessage, moveCaretToEnd, setPlaceholder } from '../../components/message-input.js';
+import {
+    clearSlashCommandChip,
+    handleWindowMessage,
+    initMessageInput,
+    moveCaretToEnd,
+    setPlaceholder,
+    setSlashCommandChip,
+} from '../../components/message-input.js';
 import '../../utils/viewport.js';
 import {
     hideChatList,
@@ -46,6 +53,14 @@ import {
     resolveDefaultChatLocale,
     syncDefaultChatForLocale
 } from '../../utils/default-chat.js';
+import {
+    createEmptySlashCommand,
+    getSlashCommandDisplayLabel,
+    matchesSlashCommand,
+    normalizeSlashCommand,
+    readSlashCommands,
+    writeSlashCommands,
+} from '../../utils/slash-commands.js';
 import { createShellPluginRuntime } from '../../plugin/shell/shell-plugin-runtime.js';
 
 // 存储用户的问题历史
@@ -72,12 +87,16 @@ async function onDomReady() {
         const settingsMenu = document.getElementById('settings-menu');
         const preferencesToggle = document.getElementById('preferences-toggle');
         const pluginsToggle = document.getElementById('plugins-toggle');
+        const slashCommandsToggle = document.getElementById('slash-commands-toggle');
         const previewModal = document.querySelector('.image-preview-modal');
         const previewImage = previewModal?.querySelector('img') || null;
         const chatListPage = document.getElementById('chat-list-page');
         const newChatButton = document.getElementById('new-chat');
         const chatListButton = document.getElementById('chat-list');
         const apiSettings = document.getElementById('api-settings');
+        const slashCommandsPage = document.getElementById('slash-commands-page');
+        const slashCommandMenu = document.getElementById('slash-command-menu');
+        const slashCommandsAddButton = document.getElementById('slash-cmd-add-btn');
         const preferencesSettings = document.getElementById('preferences-settings');
         const pluginSettings = document.getElementById('plugin-settings');
         const deleteMessageButton = document.getElementById('delete-message');
@@ -552,6 +571,8 @@ async function onDomReady() {
         getWebpageInfo: async () => (isExtensionEnvironment ? await getEnabledTabsContent() : null),
         getUserLanguage: () => navigator.language,
         getDraftKeyForChatId: draftKeyForChatId,
+        getActiveSlashCommand: () => activeSlashCommand,
+        clearActiveSlashCommand: () => clearActiveSlashCommandSelection(),
         storageAdapter,
         shouldStickToBottom,
         setThinkingPlaceholder,
@@ -695,15 +716,286 @@ async function onDomReady() {
 
     const openSettingsMenu = (mode = 'click') => {
         if (!settingsMenu) return;
+        hideSlashCommandMenu();
         settingsMenu.classList.add('visible');
         settingsMenuOpenMode = mode;
     };
 
     const closeSettingsMenu = () => {
+        hideSlashCommandMenu();
         settingsMenu?.classList?.remove('visible');
         settingsMenuOpenMode = null;
         webpageContentMenu?.classList?.remove('visible');
     };
+
+    let slashCommands = [];
+    let activeSlashCommand = null;
+    let slashCommandMenuVisible = false;
+    let slashCommandSelectedIndex = 0;
+    let slashCommandsPersistTimer = null;
+    let slashCommandMatches = [];
+
+    const hideSlashCommandMenu = () => {
+        if (slashCommandMenu) {
+            slashCommandMenu.style.display = 'none';
+            slashCommandMenu.textContent = '';
+        }
+        slashCommandMatches = [];
+        slashCommandSelectedIndex = 0;
+        slashCommandMenuVisible = false;
+    };
+
+    const clearActiveSlashCommandSelection = ({ removeChip = false } = {}) => {
+        activeSlashCommand = null;
+        hideSlashCommandMenu();
+        if (removeChip) {
+            clearSlashCommandChip(messageInput, { emitEvent: false });
+        }
+    };
+
+    const updateSlashCommand = (commandId, updates = {}) => {
+        const currentCommand = slashCommands.find((item) => item.id === commandId);
+        if (!currentCommand) return;
+
+        const nextCommand = normalizeSlashCommand({
+            ...currentCommand,
+            ...updates,
+            updatedAt: Date.now(),
+        }, { fallbackId: commandId });
+
+        slashCommands = slashCommands.map((item) => item.id === commandId ? nextCommand : item);
+        if (activeSlashCommand?.id === commandId) {
+            activeSlashCommand = nextCommand;
+        }
+        queueSlashCommandsPersist();
+    };
+
+    const renderSlashCommandCards = () => {
+        const cardsContainer = slashCommandsPage?.querySelector('.slash-commands-cards');
+        const template = cardsContainer?.querySelector('.slash-command-card.template');
+        const emptyState = slashCommandsPage?.querySelector('.empty-state');
+        if (!cardsContainer || !template || !emptyState) return;
+
+        cardsContainer.querySelectorAll('.slash-command-card:not(.template)').forEach((element) => element.remove());
+
+        if (slashCommands.length === 0) {
+            emptyState.hidden = false;
+            return;
+        }
+
+        emptyState.hidden = true;
+
+        slashCommands.forEach((command) => {
+            const card = template.cloneNode(true);
+            card.classList.remove('template');
+            card.style.display = '';
+            card.dataset.commandId = command.id;
+
+            const nameInput = card.querySelector('.slash-cmd-name');
+            const labelInput = card.querySelector('.slash-cmd-label-input');
+            const promptInput = card.querySelector('.slash-cmd-prompt');
+            const deleteButton = card.querySelector('.slash-cmd-delete-btn');
+
+            if (nameInput) {
+                nameInput.value = command.name || '';
+                nameInput.addEventListener('input', (event) => {
+                    updateSlashCommand(command.id, { name: event.target.value });
+                });
+            }
+
+            if (labelInput) {
+                labelInput.value = command.label || '';
+                labelInput.addEventListener('input', (event) => {
+                    updateSlashCommand(command.id, { label: event.target.value });
+                });
+            }
+
+            if (promptInput) {
+                promptInput.value = command.prompt || '';
+                promptInput.addEventListener('input', (event) => {
+                    updateSlashCommand(command.id, { prompt: event.target.value });
+                });
+            }
+
+            if (deleteButton) {
+                deleteButton.addEventListener('click', () => {
+                    slashCommands = slashCommands.filter((item) => item.id !== command.id);
+                    if (activeSlashCommand?.id === command.id) {
+                        clearActiveSlashCommandSelection({ removeChip: true });
+                    }
+                    queueSlashCommandsPersist();
+                    renderSlashCommandCards();
+                });
+            }
+
+            cardsContainer.appendChild(card);
+        });
+
+        applyI18n(cardsContainer);
+    };
+
+    const queueSlashCommandsPersist = () => {
+        if (slashCommandsPersistTimer) {
+            clearTimeout(slashCommandsPersistTimer);
+        }
+        slashCommandsPersistTimer = setTimeout(() => {
+            slashCommandsPersistTimer = null;
+            void writeSlashCommands(slashCommands, { storage: storageAdapter })
+                .then((storedCommands) => {
+                    slashCommands = storedCommands;
+                    if (activeSlashCommand?.id) {
+                        activeSlashCommand = slashCommands.find((item) => item.id === activeSlashCommand.id) || null;
+                    }
+                })
+                .catch((error) => {
+                    console.error('保存快速命令失败:', error);
+                });
+        }, 250);
+    };
+
+    const flushSlashCommandsPersist = async () => {
+        if (slashCommandsPersistTimer) {
+            clearTimeout(slashCommandsPersistTimer);
+            slashCommandsPersistTimer = null;
+        }
+        slashCommands = await writeSlashCommands(slashCommands, { storage: storageAdapter });
+        if (activeSlashCommand?.id) {
+            activeSlashCommand = slashCommands.find((item) => item.id === activeSlashCommand.id) || null;
+        }
+    };
+
+    const selectSlashCommand = (command) => {
+        activeSlashCommand = command;
+        hideSlashCommandMenu();
+        setSlashCommandChip(messageInput, command);
+    };
+
+    const renderSlashCommandMenu = () => {
+        if (!slashCommandMenu) return;
+
+        slashCommandMenu.textContent = '';
+        slashCommandMatches.forEach((command, index) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = `slash-command-item${index === slashCommandSelectedIndex ? ' selected' : ''}`;
+            item.dataset.commandId = command.id;
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'slash-command-item-name';
+            nameSpan.textContent = getSlashCommandDisplayLabel(command);
+
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'slash-command-item-label';
+            labelSpan.textContent = command.label || '';
+
+            item.appendChild(nameSpan);
+            item.appendChild(labelSpan);
+            item.addEventListener('click', () => selectSlashCommand(command));
+            slashCommandMenu.appendChild(item);
+        });
+
+        slashCommandMenu.style.display = '';
+        slashCommandMenuVisible = slashCommandMatches.length > 0;
+    };
+
+    const showSlashCommandMenu = (query = '') => {
+        if (!slashCommandMenu || slashCommandsPage?.classList.contains('visible')) {
+            hideSlashCommandMenu();
+            return;
+        }
+
+        slashCommandMatches = slashCommands.filter((command) => {
+            const label = getSlashCommandDisplayLabel(command);
+            return label && matchesSlashCommand(command, query);
+        });
+
+        if (slashCommandMatches.length === 0) {
+            hideSlashCommandMenu();
+            return;
+        }
+
+        slashCommandSelectedIndex = 0;
+        renderSlashCommandMenu();
+    };
+
+    const updateSlashCommandMenuSelection = () => {
+        if (!slashCommandMenuVisible || !slashCommandMenu) return;
+        const items = slashCommandMenu.querySelectorAll('.slash-command-item');
+        items.forEach((item, index) => {
+            item.classList.toggle('selected', index === slashCommandSelectedIndex);
+        });
+        items[slashCommandSelectedIndex]?.scrollIntoView({ block: 'nearest' });
+    };
+
+    const loadSlashCommands = async () => {
+        try {
+            slashCommands = await readSlashCommands({ storage: storageAdapter });
+        } catch (error) {
+            console.error('加载快速命令失败:', error);
+            slashCommands = [];
+        }
+        if (activeSlashCommand?.id) {
+            activeSlashCommand = slashCommands.find((item) => item.id === activeSlashCommand.id) || null;
+        }
+        renderSlashCommandCards();
+    };
+
+    document.addEventListener('cerebr:slashCommandQuery', (event) => {
+        showSlashCommandMenu(event.detail?.query || '');
+    });
+
+    document.addEventListener('cerebr:slashCommandDismiss', () => {
+        hideSlashCommandMenu();
+    });
+
+    document.addEventListener('cerebr:slashCommandRemoved', () => {
+        clearActiveSlashCommandSelection();
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!slashCommandMenuVisible) return;
+        if (slashCommandMenu?.contains(event.target) || messageInput.contains(event.target)) return;
+        hideSlashCommandMenu();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (!slashCommandMenuVisible || !slashCommandMatches.length) return;
+        if (!(document.activeElement === messageInput || messageInput.contains(document.activeElement))) return;
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            event.stopPropagation();
+            slashCommandSelectedIndex = Math.min(slashCommandSelectedIndex + 1, slashCommandMatches.length - 1);
+            updateSlashCommandMenuSelection();
+            return;
+        }
+
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            event.stopPropagation();
+            slashCommandSelectedIndex = Math.max(slashCommandSelectedIndex - 1, 0);
+            updateSlashCommandMenuSelection();
+            return;
+        }
+
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            event.stopPropagation();
+            const command = slashCommandMatches[slashCommandSelectedIndex];
+            if (command) {
+                selectSlashCommand(command);
+            }
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            hideSlashCommandMenu();
+        }
+    }, true);
+
+    await loadSlashCommands();
 
     const enableSettingsMenuDecelOpen = true;
 
@@ -1235,6 +1527,7 @@ async function onDomReady() {
 
     // 偏好设置页面
     const preferencesBackButton = preferencesSettings?.querySelector('.back-button');
+    const slashCommandsBackButton = slashCommandsPage?.querySelector('.back-button') || null;
     const pluginSettingsBackButton = pluginSettings?.querySelector('.back-button') || null;
 
     const appVersion = await getAppVersion();
@@ -1355,6 +1648,36 @@ async function onDomReady() {
         preferencesToggle.addEventListener('click', () => {
             preferencesSettings.classList.add('visible');
             closeSettingsMenu();
+        });
+    }
+
+    if (slashCommandsToggle && slashCommandsPage) {
+        slashCommandsToggle.addEventListener('click', () => {
+            hideSlashCommandMenu();
+            slashCommandsPage.classList.add('visible');
+            closeSettingsMenu();
+        });
+    }
+
+    if (slashCommandsBackButton && slashCommandsPage) {
+        slashCommandsBackButton.addEventListener('click', async () => {
+            await flushSlashCommandsPersist();
+            slashCommandsPage.classList.remove('visible');
+        });
+    }
+
+    if (slashCommandsAddButton) {
+        slashCommandsAddButton.addEventListener('click', () => {
+            const newCommand = createEmptySlashCommand();
+            slashCommands = [...slashCommands, newCommand];
+            queueSlashCommandsPersist();
+            renderSlashCommandCards();
+
+            requestAnimationFrame(() => {
+                const nameInput = slashCommandsPage?.querySelector(`[data-command-id="${newCommand.id}"] .slash-cmd-name`);
+                nameInput?.focus();
+                nameInput?.select?.();
+            });
         });
     }
 
@@ -1811,6 +2134,7 @@ async function onDomReady() {
         await commitPendingPreferences();
         await Promise.all([
             flushApiConfigsPersist(),
+            flushSlashCommandsPersist(),
             draftController.saveDraftNow(),
             readingProgressManager?.saveNow?.() || Promise.resolve(),
             chatManager.flushNow(),
@@ -1954,6 +2278,12 @@ async function onDomReady() {
 
         if (apiSettings?.classList?.contains('visible')) {
             apiSettings.classList.remove('visible');
+            handled = true;
+        }
+
+        if (slashCommandsPage?.classList?.contains('visible')) {
+            void flushSlashCommandsPersist().catch(() => {});
+            slashCommandsPage.classList.remove('visible');
             handled = true;
         }
 

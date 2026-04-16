@@ -2,6 +2,7 @@ import { chatManager } from '../../domain/chat/chat-store.js';
 import { showImagePreview, createImageTag, showToast } from '../../utils/ui.js';
 import { processMathAndMarkdown, renderMathInElement, textMayContainMath } from '../../../htmd/latex.js';
 import { t } from '../../utils/i18n.js';
+import { getSlashCommandDisplayLabel } from '../../utils/slash-commands.js';
 
 function isNearBottom(container, thresholdPx = 120) {
     const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -187,8 +188,14 @@ export async function appendMessage({
         messageDiv.classList.add('batch-load');
     }
 
+    const slashLabel = typeof text === 'object'
+        ? getSlashCommandDisplayLabel({ name: text.slashCommandLabel })
+        : '';
+
     // 处理文本内容
-    const rawContent = typeof text === 'string' ? text : text.content;
+    const rawContent = typeof text === 'string'
+        ? text
+        : (text.displayContent !== undefined ? text.displayContent : text.content);
     const plainTextContent = Array.isArray(rawContent)
         ? rawContent.filter(item => item?.type === 'text').map(item => item.text).join('\n')
         : String(rawContent ?? '');
@@ -234,7 +241,9 @@ export async function appendMessage({
     if (sender === 'user' && !skipHistory) {
         const currentChat = chatManager.getCurrentChat();
         if (currentChat && currentChat.messages.length === 0) {
-            currentChat.title = plainTextContent;
+            const slashPrefix = slashLabel ? `/${slashLabel}` : '';
+            const titleParts = [slashPrefix, plainTextContent].filter(Boolean);
+            currentChat.title = titleParts.join(' ') || plainTextContent;
             chatManager.saveChats();
         }
     }
@@ -250,6 +259,9 @@ export async function appendMessage({
     }
     if (isSeedManaged) {
         messageDiv.dataset.seedManaged = '1';
+    }
+    if (slashLabel) {
+        messageDiv.dataset.slashCommandLabel = slashLabel;
     }
 
     // 如果有思考内容，添加思考模块
@@ -282,6 +294,13 @@ export async function appendMessage({
 
         reasoningWrapper.appendChild(reasoningDiv);
         messageDiv.appendChild(reasoningWrapper);
+    }
+
+    if (slashLabel) {
+        const badge = document.createElement('span');
+        badge.className = 'slash-command-chip chat-badge';
+        badge.textContent = slashLabel;
+        messageDiv.appendChild(badge);
     }
 
     // 添加主要内容
