@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cerebr Plugin Vibe Coder"
+  short_description: "Build Cerebr plugin starters fast"
+  default_prompt: "Use $cerebr-plugin-vibe-coder to create or update a Cerebr plugin starter, manifest, docs, and repo-aligned workflow."

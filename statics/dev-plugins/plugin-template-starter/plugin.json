@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "local.plugin-template-starter",
+  "version": "0.1.0",
+  "kind": "script",
+  "scope": "shell",
+  "displayName": "Plugin Template Starter",
+  "description": "Starter manifest for building new Cerebr developer-mode script plugins from a copy-friendly local template.",
+  "defaultEnabled": false,
+  "permissions": [
+    "shell:input"
+  ],
+  "compatibility": {
+    "versionRange": ">=2.4.69 <3.0.0"
+  },
+  "script": {
+    "entry": "./shell.js"
+  }
+}
