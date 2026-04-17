@@ -45,7 +45,9 @@ function applySubstitutions(template, substitutions) {
 }
 
 async function fetchLocaleJson(baseUrl, localeCode, revision) {
-    const url = new URL(`../locales/${localeCode}.json`, baseUrl);
+    // baseUrl is shell.js's import.meta.url (plugin root + '/shell.js').
+    // Use './locales/' relative to it so the URL resolves under plugin root.
+    const url = new URL(`./locales/${localeCode}.json`, baseUrl);
     if (revision) url.searchParams.set('cerebr_plugin_rev', revision);
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {

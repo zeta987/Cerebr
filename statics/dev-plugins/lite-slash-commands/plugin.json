@@ -13,6 +13,6 @@
     "versionRange": ">=2.4.69 <3.0.0"
   },
   "script": {
-    "entry": "./shell.js"
+    "entry": "/statics/dev-plugins/lite-slash-commands/shell.js"
   }
 }
