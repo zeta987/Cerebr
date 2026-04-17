@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "local.lite-slash-commands",
+  "version": "0.4.0",
+  "kind": "script",
+  "scope": "shell",
+  "displayName": "Lite Slash Commands",
+  "description": "在 Cerebr 輸入框啟用可自訂的斜線命令 picker，內建 4 個核心範本、{{lang}} 佔位符與多語系管理介面。",
+  "defaultEnabled": true,
+  "requiresExtension": true,
+  "permissions": ["ui:mount"],
+  "compatibility": {
+    "versionRange": ">=2.4.69 <3.0.0"
+  },
+  "script": {
+    "entry": "./shell.js"
+  }
+}
